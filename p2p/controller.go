@@ -16,40 +16,36 @@
 
 package p2p
 
-import "fmt"
-import "net"
+import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha1"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"net"
+	"os"
+	"runtime/debug"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
-import "os"
-import "time"
-import "sort"
-import "sync"
-import "strings"
-import "math/big"
-import "strconv"
-
-import "crypto/sha1"
-import "crypto/ecdsa"
-import "crypto/elliptic"
-
-import "crypto/tls"
-import "crypto/rand"
-import "crypto/x509"
-import "encoding/pem"
-import "sync/atomic"
-import "runtime/debug"
-
-import "github.com/go-logr/logr"
-
-import "github.com/deroproject/derohe/config"
-import "github.com/deroproject/derohe/globals"
-import "github.com/deroproject/derohe/metrics"
-import "github.com/deroproject/derohe/blockchain"
-
-import "github.com/xtaci/kcp-go/v5"
-import "golang.org/x/crypto/pbkdf2"
-import "golang.org/x/time/rate"
-
-import "github.com/cenkalti/rpc2"
+	"github.com/cenkalti/rpc2"
+	"github.com/deroproject/derohe/blockchain"
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/metrics"
+	"github.com/go-logr/logr"
+	"github.com/xtaci/kcp-go/v5"
+	"golang.org/x/crypto/pbkdf2"
+	"golang.org/x/time/rate"
+)
 
 //import "github.com/txthinking/socks5"
 
@@ -108,8 +104,10 @@ func P2P_Init(params map[string]interface{}) error {
 	}
 	if os.Getenv("TURBO") == "0" {
 		logger.Info("P2P is in normal mode")
+		config.P2PTurbo = false
 	} else {
 		logger.Info("P2P is in turbo mode")
+		config.P2PTurbo = true
 	}
 
 	if os.Getenv("BW_FACTOR") != "" {
@@ -117,7 +115,9 @@ func P2P_Init(params map[string]interface{}) error {
 		if bw_factor <= 0 {
 			bw_factor = 1
 		}
+
 		logger.Info("", "BW_FACTOR", bw_factor)
+		config.P2PBWFactor = int64(bw_factor)
 	}
 
 	if os.Getenv("UDP_READ_BUF_CONN") != "" {
@@ -166,6 +166,8 @@ func P2P_Init(params map[string]interface{}) error {
 	globals.Cron.AddFunc("@every 5s", Connection_Pending_Clear) // clean dead connections
 	globals.Cron.AddFunc("@every 10s", ping_loop)               // ping every one
 	globals.Cron.AddFunc("@every 10s", chunks_clean_up)         // clean chunks
+	globals.Cron.AddFunc("@every 60s", save_peer_list)          // save peer list so we can use it for monitoring
+	globals.Cron.AddFunc("@every 60s", save_ban_list)           // save peer list so we can use it for monitoring
 
 	go time_check_routine() // check whether server time is in sync using ntp
 
@@ -274,7 +276,7 @@ func P2P_engine() {
 
 func tunekcp(conn *kcp.UDPSession) {
 	conn.SetACKNoDelay(true)
-	if os.Getenv("TURBO") == "0" {
+	if config.P2PTurbo {
 		conn.SetNoDelay(1, 10, 2, 1) // tuning paramters for local stack for fast retransmission stack
 	} else {
 		conn.SetNoDelay(0, 40, 0, 0) // tuning paramters for local

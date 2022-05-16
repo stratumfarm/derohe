@@ -24,37 +24,37 @@ package walletapi
  */
 //import "io"
 //import "os"
-import "fmt"
-import "time"
-import "sync"
-import "bytes"
-import "math/big"
+import (
+	"bytes"
+	"context"
+	"encoding/hex"
+	"fmt"
+	"math/big"
+	"runtime/debug"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/creachadair/jrpc2"
+	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/cryptography/bn256"
+	"github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/errormsg"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/rpc"
+	"github.com/deroproject/derohe/transaction"
+)
 
 //import "bufio"
-import "strings"
-import "context"
 
 //import "runtime"
 //import "compress/gzip"
-import "encoding/hex"
-
-import "runtime/debug"
 
 //import "github.com/vmihailenco/msgpack"
 
 //import "github.com/gorilla/websocket"
 //import "github.com/mafredri/cdp/rpcc"
-
-import "github.com/deroproject/derohe/rpc"
-import "github.com/deroproject/derohe/block"
-import "github.com/deroproject/derohe/config"
-import "github.com/deroproject/derohe/globals"
-import "github.com/deroproject/derohe/cryptography/crypto"
-import "github.com/deroproject/derohe/errormsg"
-import "github.com/deroproject/derohe/transaction"
-import "github.com/deroproject/derohe/cryptography/bn256"
-
-import "github.com/creachadair/jrpc2"
 
 // this global variable should be within wallet structure
 var Connected bool = false
@@ -121,7 +121,7 @@ var Daemon_Endpoint_Active string
 
 func get_daemon_address() string {
 	if globals.Arguments["--remote"] == true && globals.IsMainnet() {
-		Daemon_Endpoint_Active = config.REMOTE_DAEMON + fmt.Sprintf(":%d", config.Mainnet.RPC_Default_Port)
+		Daemon_Endpoint_Active = config.REMOTE_DAEMON
 	}
 
 	// if user provided endpoint has error, use default

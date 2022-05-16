@@ -20,30 +20,28 @@ package p2p
  * this will also ensure that a single IP is connected only once
  *
  */
-import "os"
-import "fmt"
-import "net"
-import "math"
-import "sync"
-import "sort"
-import "time"
-import "strings"
-import "strconv"
-import "context"
-import "sync/atomic"
-import "runtime/debug"
+import (
+	"context"
+	"fmt"
+	"math"
+	"net"
+	"runtime/debug"
+	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
-import "github.com/go-logr/logr"
-
-import "github.com/dustin/go-humanize"
-
-import "github.com/deroproject/derohe/block"
-import "github.com/deroproject/derohe/cryptography/crypto"
-import "github.com/deroproject/derohe/globals"
-import "github.com/deroproject/derohe/metrics"
-import "github.com/deroproject/derohe/transaction"
-
-import "github.com/cenkalti/rpc2"
+	"github.com/cenkalti/rpc2"
+	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/metrics"
+	"github.com/deroproject/derohe/transaction"
+	"github.com/dustin/go-humanize"
+	"github.com/go-logr/logr"
+)
 
 // any connection incoming/outgoing can only be in this state
 //type Conn_State uint32
@@ -107,6 +105,10 @@ type Connection struct {
 	onceexit      sync.Once
 
 	Mutex sync.Mutex // used only by connection go routine
+}
+
+func ConnecToNode(address string) {
+	go connect_with_endpoint(address, false)
 }
 
 func Address(c *Connection) string {
@@ -351,6 +353,19 @@ func Peer_Count() (Count uint64) {
 	return
 }
 
+// this function return peer count which have successful handshake
+func Peer_Count_Whitelist() (Count uint64) {
+
+	for _, p := range peer_map {
+		if p.Whitelist { // only display white listed peer
+			// whitelisted = "yes"
+			Count++
+		}
+	}
+
+	return
+}
+
 // this returns count of peers in both directions
 func Peer_Direction_Count() (Incoming uint64, Outgoing uint64) {
 	connection_map.Range(func(k, value interface{}) bool {
@@ -407,7 +422,7 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 		return connections[i].Latency < connections[j].Latency
 	})
 
-	bw_factor, _ := strconv.Atoi(os.Getenv("BW_FACTOR"))
+	bw_factor := int(config.P2PBWFactor)
 	if bw_factor < 1 {
 		bw_factor = 1
 	}
@@ -453,7 +468,11 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 					var dummy Dummy
 					fill_common(&peer_specific_list.Common) // fill common info
 					if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
+						go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Block_Coded", cbl.Bl.GetHash().String(), connection.Peer_ID, err.Error())
+						go LogReject(connection.Addr.String())
 						return
+					} else {
+						go LogAccept(connection.Addr.String())
 					}
 					connection.update(&dummy.Common) // update common information
 
@@ -517,7 +536,11 @@ func broadcast_Chunk(chunk *Block_Chunk, PeerID uint64, first_seen int64) { // i
 				var dummy Dummy
 				fill_common(&peer_specific_list.Common) // fill common info
 				if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
+					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Chunk", fmt.Sprintf("%x", chunk.BLID), connection.Peer_ID, err.Error())
+					go LogReject(connection.Addr.String())
 					return
+				} else {
+					go LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
 			}(v)
@@ -572,7 +595,11 @@ func broadcast_MiniBlock(mbl block.MiniBlock, PeerID uint64, first_seen int64) {
 
 				var dummy Dummy
 				if err := connection.Client.Call("Peer.NotifyMiniBlock", peer_specific_block, &dummy); err != nil {
+					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_MiniBlock", mbl.GetHash().String(), connection.Peer_ID, err.Error())
+					go LogReject(connection.Addr.String())
 					return
+				} else {
+					go LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
 			}(v)

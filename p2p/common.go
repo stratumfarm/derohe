@@ -1,10 +1,12 @@
 package p2p
 
-import "time"
-import "sync/atomic"
+import (
+	"sync/atomic"
+	"time"
 
-import "github.com/deroproject/derohe/globals"
-import "github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/globals"
+)
 
 // fill the common part from our chain
 func fill_common(common *Common_Struct) {
@@ -81,7 +83,7 @@ func (connection *Connection) update(common *Common_Struct) {
 	if len(common.PeerList) > 1 {
 		connection.logger.V(4).Info("Peer provides peers", "count", len(common.PeerList))
 		for i := range common.PeerList {
-			if i < 31 {
+			if i < int(Min_Peers) {
 				Peer_Add(&Peer{Address: common.PeerList[i].Addr, LastConnected: uint64(time.Now().UTC().Unix())})
 			}
 		}

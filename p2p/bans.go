@@ -19,23 +19,25 @@ package p2p
 /* this file implements the peer manager, keeping a list of peers which can be tried for connection etc
  *
  */
-import "os"
-import "fmt"
-import "net"
-import "sync"
-import "time"
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/deroproject/derohe/globals"
+)
 
 //import "sort"
-import "path/filepath"
-import "encoding/json"
 
 //import "encoding/binary"
 //import "container/list"
 
 //import log "github.com/sirupsen/logrus"
-
-import "github.com/deroproject/derohe/globals"
 
 //import "github.com/deroproject/derosuite/crypto"
 
@@ -50,7 +52,9 @@ import "github.com/deroproject/derohe/globals"
 // enableban address  // by default all addresses are bannable
 // disableban address  // this address will never be banned
 
-var ban_map = map[string]uint64{} // keeps ban maps
+var ban_map = map[string]uint64{}     // keeps ban maps
+var autoban_map = map[string]uint64{} // keeps ban maps
+
 var ban_mutex sync.Mutex
 
 // loads peers list from disk
@@ -139,6 +143,7 @@ func ban_clean_up() {
 			delete(ban_map, k)
 		}
 	}
+
 }
 
 // convert address to subnet form
@@ -183,6 +188,11 @@ func IsAddressInBanList(address string) bool {
 		return true
 	}
 
+	// if it's a subnet or direct ip, do instant check
+	if _, ok := autoban_map[address]; ok {
+		return true
+	}
+
 	ip := net.ParseIP(address) // user provided a valid ip parse and check subnet
 	if ip != nil {
 
@@ -206,6 +216,22 @@ func IsAddressInBanList(address string) bool {
 // manual bans are always placed
 // address can be an address or a subnet
 
+func AutoBan_Address(address string) (err error) {
+	ban_mutex.Lock()
+	defer ban_mutex.Unlock()
+
+	// make sure we are not banning seed nodes/exclusive node/priority nodes on command line
+	_, address, err = ParseAddress(address)
+	if err != nil {
+		return
+	}
+
+	logger.Info(fmt.Sprintf("Address: %s - Added to Auto-Ban List", address))
+	autoban_map[address] = uint64(time.Now().UTC().Unix())
+	go Ban_Address(address, 3600)
+	return
+}
+
 func Ban_Address(address string, ban_seconds uint64) (err error) {
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
@@ -218,6 +244,18 @@ func Ban_Address(address string, ban_seconds uint64) (err error) {
 
 	//logger.Warnf("%s banned for %d secs", address, ban_seconds)
 	ban_map[address] = uint64(time.Now().UTC().Unix()) + ban_seconds
+
+	connection_map.Range(func(k, value interface{}) bool {
+		v := value.(*Connection)
+		if ParseIPNoError(address) == ParseIPNoError(v.Addr.String()) {
+			v.Client.Close()
+			v.Conn.Close()
+			connection_map.Delete(Address(v))
+			return false
+		}
+		return true
+	})
+
 	return
 }
 
@@ -245,6 +283,13 @@ func UnBan_Address(address string) (err error) {
 	defer ban_mutex.Unlock()
 	logger.Info("unbanned", "address", address)
 	delete(ban_map, address)
+
+	// remove from autoban
+	_, ab := autoban_map[address]
+	if ab {
+		delete(autoban_map, address)
+	}
+
 	return
 }
 
@@ -275,13 +320,20 @@ func BanList_Print() {
 	ban_clean_up() // clean up before printing
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
-	logger.Info(fmt.Sprintf("Ban List contains %d \n", len(ban_map)))
-	logger.Info(fmt.Sprintf("%-22s %-6s\n", "Addr", "Seconds to unban"))
 
+	fmt.Printf("%-22s %-22s %-8s\n", "Addr", "Seconds to unban", "Auto Ban")
 	for k, v := range ban_map {
-		logger.Info(fmt.Sprintf("%-22s %6d\n", k, v-uint64(time.Now().UTC().Unix())))
+
+		is_autoban := "no"
+		_, ab := autoban_map[k]
+		if ab {
+			is_autoban = "yes"
+		}
+
+		fmt.Printf("%-22s %-22d %-8s\n", k, v-uint64(time.Now().UTC().Unix()), is_autoban)
 	}
 
+	fmt.Printf("Ban List contains: %d - Auto Ban List: %d\n", len(ban_map), len(autoban_map))
 }
 
 // this function return peer count which have successful handshake

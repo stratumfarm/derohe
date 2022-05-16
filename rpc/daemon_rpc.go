@@ -297,6 +297,19 @@ type (
 		White_peerlist_size        uint64  `json:"white_peerlist_size"`
 		Version                    string  `json:"version"`
 
+		Miners               int `json:"connected_miners"`
+		Miniblocks_In_Memory int `json:"miniblocks_in_memory"`
+
+		CountBlocks        int64   `json:"blocks_count"`
+		CountMinisAccepted int64   `json:"miniblocks_accepted_count"`
+		CountMinisRejected int64   `json:"miniblocks_rejected_count"`
+		Mining_Velocity    float64 `json:"mining_velocity"`
+		Uptime             uint64  `json:"uptime"`
+
+		HashrateEstimatePercent_1hr  uint64 `json:"hashrate_1hr"`
+		HashrateEstimatePercent_1day uint64 `json:"hashrate_1d"`
+		HashrateEstimatePercent_7day uint64 `json:"hashrate_7d"`
+
 		Status string `json:"status"`
 	}
 )
