@@ -114,7 +114,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	}
 	time.Sleep(1 * time.Second)
 
-	if best_height+1 <= our_height || best_height-1 >= our_height {
+	if best_height == our_height || our_height+1 == best_height || our_height-1 == best_height {
 		io.WriteString(w, fmt.Sprintf("\tOK: Blockchain height and node verified .. Height is (%d)\n", our_height))
 		globals.NetworkTurtle = false
 	} else {

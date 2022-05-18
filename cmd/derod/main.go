@@ -1022,7 +1022,7 @@ restart_loop:
 				if line_parts[1] == "block_reject_threshold" && len(line_parts) == 3 {
 					i, err := strconv.ParseInt(line_parts[2], 10, 64)
 					if err != nil {
-						io.WriteString(l.Stderr(), "diagnostic_delay in seconds\n")
+						io.WriteString(l.Stderr(), "block_reject_threshold in seconds\n")
 					} else {
 						config.BlockRejectThreshold = i
 
@@ -1095,7 +1095,7 @@ restart_loop:
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\n\tDiagnostic Thresholds - use (run_diagnostic) to test\n"))
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Block Transmission Success Rate Threshold", config.BlockRejectThreshold, "config block_reject_threshold <seconds>"))
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Peer Latency Threshold (seconds)", time.Duration(config.PeerLatencyThreshold).Round(time.Millisecond).String(), "config peer_latency_threshold <seconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Peer Latency Threshold (Miliseconds)", time.Duration(config.PeerLatencyThreshold).Round(time.Millisecond).String(), "config peer_latency_threshold <seconds>"))
 
 			io.WriteString(l.Stdout(), "\n")
 
