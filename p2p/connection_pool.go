@@ -264,7 +264,7 @@ func Connection_Print() {
 
 	logger.Info("Connection info for peers", "count", len(clist), "our Statehash", StateHash)
 
-	fmt.Printf("%-30s %-16s %-5s %-7s %-7s %-7s %23s %3s %5s %s %s %16s %16s\n", "Remote Addr", "PEER ID", "PORT", " State", "Latency", "Offset", "S/H/T", "DIR", "QUEUE", "     IN", "    OUT", "Version", "Statehash")
+	fmt.Printf("%-30s %-16s %-5s %-7s %-7s %-7s %23s %3s %5s %s %s %16s %16s\n", "Remote Addr", "PEER ID", "PORT", " State", "Latency", "Offset", "S/H/T", "DIR", "BTS", "     IN", "    OUT", "Version", "Statehash")
 
 	// sort the list
 	sort.Slice(clist, func(i, j int) bool { return clist[i].Addr.String() < clist[j].Addr.String() })
@@ -276,6 +276,14 @@ func Connection_Print() {
 		// skip pending  handshakes and skip ourselves
 		if atomic.LoadUint32(&clist[i].State) == HANDSHAKE_PENDING || GetPeerID() == clist[i].Peer_ID {
 			//	continue
+		}
+
+		PeerAddress := ParseIPNoError(clist[i].Addr.String())
+		var success_rate float64
+		_, ps := BlockInsertCount[PeerAddress]
+		if ps {
+			total := (BlockInsertCount[PeerAddress].Blocks_Accepted + BlockInsertCount[PeerAddress].Blocks_Rejected)
+			success_rate = float64(float64(float64(BlockInsertCount[PeerAddress].Blocks_Accepted) / float64(total) * 100))
 		}
 
 		dir := "OUT"
@@ -311,7 +319,7 @@ func Connection_Print() {
 		ctime := time.Now().Sub(clist[i].Created).Round(time.Second)
 
 		hstring := fmt.Sprintf("%d/%d/%d", clist[i].StableHeight, clist[i].Height, clist[i].TopoHeight)
-		fmt.Printf("%-30s %16x %5d %7s %7s %7s %23s %s %5d %7s %7s     %16s %s %x\n", Address(clist[i])+" ("+ctime.String()+")", clist[i].Peer_ID, clist[i].Port, state, time.Duration(atomic.LoadInt64(&clist[i].Latency)).Round(time.Millisecond).String(), time.Duration(atomic.LoadInt64(&clist[i].clock_offset)).Round(time.Millisecond).String(), hstring, dir, 0, humanize.Bytes(atomic.LoadUint64(&clist[i].BytesIn)), humanize.Bytes(atomic.LoadUint64(&clist[i].BytesOut)), version, tag, clist[i].StateHash[:])
+		fmt.Printf("%-30s %16x %5d %7s %7s %7s %23s %s %7.2f %7s %7s     %16s %s %x\n", Address(clist[i])+" ("+ctime.String()+")", clist[i].Peer_ID, clist[i].Port, state, time.Duration(atomic.LoadInt64(&clist[i].Latency)).Round(time.Millisecond).String(), time.Duration(atomic.LoadInt64(&clist[i].clock_offset)).Round(time.Millisecond).String(), hstring, dir, success_rate, humanize.Bytes(atomic.LoadUint64(&clist[i].BytesIn)), humanize.Bytes(atomic.LoadUint64(&clist[i].BytesOut)), version, tag, clist[i].StateHash[:])
 
 		fmt.Print(color_normal)
 	}

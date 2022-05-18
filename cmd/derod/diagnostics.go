@@ -93,6 +93,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	if best_height == 0 {
 		io.WriteString(w, fmt.Sprintf("\tError.. Blockchain height not received from Peers... (%d)\n", best_height))
 		critical_errors = append(critical_errors, fmt.Sprintf("Blockchain height not received from Peers... We got (%d)", best_height))
+		globals.NetworkTurtle = true
 	} else {
 		io.WriteString(w, fmt.Sprintf("\tOK: Peers returning Blockchain height .. (%d)\n", best_height))
 	}
@@ -100,22 +101,26 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	if our_height > best_height && best_height > 0 {
 		time.Sleep(1 * time.Second)
 		io.WriteString(w, fmt.Sprintf("\tOK: Looking very good Captain, we're ahead of most of the fleet ..  Fleet (%d) vs Us (%d), we're flying\n", best_height, our_height))
+		globals.NetworkTurtle = false
 	}
 	time.Sleep(1 * time.Second)
 
 	if our_height == 0 {
 		io.WriteString(w, fmt.Sprintf("\tError.. Own Blockchain height is (%d) .. Engines still warming up\n", our_height))
 		critical_errors = append(critical_errors, fmt.Sprintf("Own Blockchain height is (%d) .. Engines still warming up", our_height))
+		globals.NetworkTurtle = true
 	} else {
-		io.WriteString(w, fmt.Sprintf("\tOK: Blockchain height verified .. (%d)\n", our_height))
+		io.WriteString(w, fmt.Sprintf("\tOK: Our Blockchain height verified .. (%d)\n", our_height))
 	}
 	time.Sleep(1 * time.Second)
 
-	if best_height > 0 && (best_height+1 <= our_height || best_height-1 >= our_height) {
+	if best_height+1 <= our_height || best_height-1 >= our_height {
+		io.WriteString(w, fmt.Sprintf("\tOK: Blockchain height and node verified .. Height is (%d)\n", our_height))
+		globals.NetworkTurtle = false
+	} else {
 		io.WriteString(w, fmt.Sprintf("\tError.. Node height not in line with the network. Status reads - Network (%d) vs Us (%d)\n", best_height, our_height))
 		critical_errors = append(critical_errors, fmt.Sprintf("Node height (%d) not in line with the network (%d)", our_height, best_height))
-	} else {
-		io.WriteString(w, fmt.Sprintf("\tOK: Blockchain height and node verified .. Height is (%d)\n", our_height))
+		globals.NetworkTurtle = true
 	}
 
 	// enable debug
@@ -148,7 +153,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	logger.V(1).Info(fmt.Sprintf("Logging Current Stats: Current Peer Height (%d) - Our Height (%d)", best_height, our_height))
 	io.WriteString(w, "\n* Block Chain and Network Scan Finished ... \n")
 	io.WriteString(w, "\n* Processing results ... \n")
-	time.Sleep(3 * time.Second)
+	time.Sleep(2 * time.Second)
 
 	our_height = chain.Get_Height()
 	best_height, _ = p2p.Best_Peer_Height()
@@ -156,6 +161,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	if last_blid == current_blid {
 		io.WriteString(w, fmt.Sprintf("\tERROR: Engine is experincing some issues, at tip: %s\n", current_blid.String()))
 		critical_errors = append(critical_errors, fmt.Sprintf("Engine issues at tip: %s", current_blid.String()))
+		globals.NetworkTurtle = true
 	} else {
 		io.WriteString(w, fmt.Sprintf("\tOK: Current tip: %s - was: %s\n", current_blid.String(), last_blid.String()))
 	}
@@ -163,6 +169,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	if our_height == our_chain_start_height {
 		io.WriteString(w, "\tERROR: Our height have not increased, our block chain is stuck!\n")
 		critical_errors = append(critical_errors, fmt.Sprintf("Our block chain is stuck at height: %d", our_height))
+		globals.NetworkTurtle = true
 	} else {
 		io.WriteString(w, fmt.Sprintf("\tOK: Our Height %d - was: %d\n", our_height, our_chain_start_height))
 	}
@@ -170,22 +177,20 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	if block_chain_start_height == best_height {
 		io.WriteString(w, "\tERROR: We're not getting new height from the network Sir. We have serious issue\n")
 		critical_errors = append(critical_errors, fmt.Sprintf("We're not getting new height from the network, stuck at height: %d", our_height))
+		globals.NetworkTurtle = true
 	} else {
 		io.WriteString(w, fmt.Sprintf("\tOK: New Network Height %d - was: %d\n", best_height, block_chain_start_height))
 	}
 
 	if block_chain_start_height < best_height && our_chain_start_height < our_height {
 		io.WriteString(w, "\tOK: Block Chain is moving as expected ... \n")
+		globals.NetworkTurtle = false
 	}
 	// peer stats
 	// loop through connections and look for ones with tag and display them on radar
-
-	io.WriteString(w, "\n* Starting Peering System Diagnostics ... \n")
-	io.WriteString(w, "\n* Scanning Stargate Peer(s)  ... \n")
-	time.Sleep(3 * time.Second)
+	io.WriteString(w, "\n* Scanning Stargate Peer(s)  ... \n\n")
 
 	peer_map := p2p.UniqueConnections()
-
 	var friendly_peers []*p2p.Connection
 	incoming_count := 0
 	outgoing_count := 0
@@ -202,77 +207,47 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 		peer_count++
 		Address := p2p.ParseIPNoError(peer.Addr.String())
 
-		io.WriteString(w, fmt.Sprintf("\tScanning: %s .... Latency: %s - Port: %d\n", Address, time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond).String(), peer.Port))
-		time.Sleep(time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond))
-		io.WriteString(w, fmt.Sprintf("\t\tID: %d\n", peer.Peer_ID))
+		// ip_str := fmt.Sprintf("Scanning: %s", Address)
+		// latency_str := fmt.Sprintf("Latency: %s", time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond).String())
 
-		direction := ">==>>===> Outgoing >==>>===>"
 		if peer.Incoming {
-			direction = "<==<<===< Incoming <==<<===<"
 			incoming_count++
 		} else {
 			outgoing_count++
 		}
-		io.WriteString(w, fmt.Sprintf("\t\tDirection: %s\n", direction))
-		//count directions
 
-		state := "PENDING"
-		if atomic.LoadUint32(&peer.State) == 1 {
-			state = "IDLE"
-		} else if atomic.LoadUint32(&peer.State) == 2 {
-			state = "ACTIVE"
-		}
-
-		io.WriteString(w, fmt.Sprintf("\t\tState: %s\n", state))
-		// count states and give summary
-		if peer.Latency/1000000 > 5000 {
-			io.WriteString(w, fmt.Sprintf("\t\tERROR: Latency Bad: %s\n", time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond)))
+		if time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond) > config.PeerLatencyThreshold {
+			// io.WriteString(w, fmt.Sprintf("\t\tERROR: Latency Bad: %s\n", time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond)))
 			critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Latency Bad: %s", Address, time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond)))
 		}
 		//check if latency is good or bad - and repotr
-		is_connected := "no"
+
 		if p2p.IsAddressConnected(p2p.ParseIPNoError(peer.Addr.String())) {
-			is_connected = fmt.Sprintf("Yes (%s)", time.Now().Sub(peer.Created).Round(time.Second).String())
 			connected_count++
 		}
-		// connected yes / no
-		io.WriteString(w, fmt.Sprintf("\t\tEndpoint Connected: %s\n", is_connected))
-		//
 		if our_height >= peer.Height {
 			good_height_count++
-			io.WriteString(w, fmt.Sprintf("\t\tOK: Our Height %d - was: %d\n", our_height, our_chain_start_height))
+
 		} else {
 			bad_height_count++
-			io.WriteString(w, fmt.Sprintf("\t\tWARN: Peer Height %d slower than us %d\n", peer.Height, our_height))
-			// peer_errors = append(peer_errors, fmt.Sprintf("Peer: %s - Height %d slower than us %d", Address, peer.Height, our_height))
 		}
 
+		var success_rate float64
 		_, ps := p2p.BlockInsertCount[Address]
 		if ps {
 
 			total := (p2p.BlockInsertCount[Address].Blocks_Accepted + p2p.BlockInsertCount[Address].Blocks_Rejected)
-			success_rate := float64(float64(float64(p2p.BlockInsertCount[Address].Blocks_Accepted) / float64(total) * 100))
+			success_rate = float64(float64(float64(p2p.BlockInsertCount[Address].Blocks_Accepted) / float64(total) * 100))
 
 			// check if this is a bad actor
-			if total >= 100 && success_rate <= 60 {
-				io.WriteString(w, fmt.Sprintf("\t\tWARN: Suspect Peer - Block Transmission Success Rate: %d Accepted / %d Rejected - %.2f%%\n", p2p.BlockInsertCount[Address].Blocks_Accepted, p2p.BlockInsertCount[Address].Blocks_Rejected,
-					success_rate))
-				peer_errors = append(peer_errors, fmt.Sprintf("Peer: %s - Is a suspecious actor, Block Transmission Success Rate: %d Accepted / %d Rejected - %.2f%%", Address, p2p.BlockInsertCount[Address].Blocks_Accepted, p2p.BlockInsertCount[Address].Blocks_Rejected, success_rate))
-				critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Is a potential bad actor, investigate and consider autoban", Address))
-
-				if config.AutoBanBad {
-					critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Banned", Address))
-
-					// Ban and reset stats so node has a chance to redeem itself
-					p2p.BlockInsertCount[Address].Blocks_Accepted = 0
-					p2p.BlockInsertCount[Address].Blocks_Rejected = 0
-					go p2p.Ban_Address(Address, 3600)
-				}
-			} else {
-				io.WriteString(w, fmt.Sprintf("\t\tBlock Transmission Success Rate: %d Accepted / %d Rejected - %.2f%%\n", p2p.BlockInsertCount[Address].Blocks_Accepted, p2p.BlockInsertCount[Address].Blocks_Rejected,
-					success_rate))
+			if total >= 100 && success_rate <= float64(config.BlockRejectThreshold) {
+				peer_errors = append(peer_errors, fmt.Sprintf("Peer: %s - Is a suspecious actor, BTS: %d Accepted / %d Rejected - %.2f%%", Address, p2p.BlockInsertCount[Address].Blocks_Accepted, p2p.BlockInsertCount[Address].Blocks_Rejected, success_rate))
+				critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Is a potential bad actor (BTS: %.2f%%), investigate and consider ban", Address, success_rate))
 			}
 		}
+
+		// block_success_rate := fmt.Sprintf("BTS: %.2f%%", success_rate)
+		// io.WriteString(w, fmt.Sprintf("\t%-34s %-22s %-22s %-32s\n", ip_str, latency_str, block_success_rate, peer.DaemonVersion))
 
 		if len(peer.Tag) >= 1 {
 			friendly_peers = append(friendly_peers, peer)
@@ -281,22 +256,23 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 		// report if daemon version is different than ours
 		if config.Version.String() != peer.DaemonVersion {
-			io.WriteString(w, fmt.Sprintf("\t\tWARN: DERO HE Version: %s\n", peer.DaemonVersion))
+			// io.WriteString(w, fmt.Sprintf("\t\tWARN: DERO HE Version: %s\n", peer.DaemonVersion))
 			// peer_errors = append(peer_errors, fmt.Sprintf("Peer: %s - Different DERO HE Version: %s", Address, peer.DaemonVersion))
 			bad_daemon_count++
 		} else {
-			io.WriteString(w, fmt.Sprintf("\t\tOK: DERO HE Version: %s\n", peer.DaemonVersion))
+			// io.WriteString(w, fmt.Sprintf("\t\tOK: DERO HE Version: %s\n", peer.DaemonVersion))
 			good_daemon_count++
 		}
 
 	}
+	time.Sleep(1 * time.Second)
 
 	if incoming_count == 0 {
 		peer_errors = append(peer_errors, "We have no incoming Peers - this makes communication very difficult!")
 		critical_errors = append(critical_errors, fmt.Sprintf("ACTION: No Incoming Peers - Make sure Port %d is allowing incoming UDP traffic", p2p.P2P_Port))
 	}
 
-	if peer_count <= int(p2p.Min_Peers) {
+	if peer_count < int(p2p.Min_Peers) {
 		peer_errors = append(peer_errors, fmt.Sprintf("We have less peer(s) than we want, we have %d and we would ideally like to have %d", peer_count, p2p.Min_Peers))
 		critical_errors = append(critical_errors, fmt.Sprintf("We have %d of %d peer(s) requested - try increase minimum peers", peer_count, p2p.Min_Peers))
 	}
@@ -306,8 +282,8 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 		critical_errors = append(critical_errors, "We have NO (0) Peer(s) connected, check network settings")
 	}
 
-	io.WriteString(w, "\n* Analysing Peer Scan Results ... \n\n")
-	time.Sleep(1 * time.Second)
+	// io.WriteString(w, "\n* Analysing Peer Scan Results ... \n\n")
+	// time.Sleep(1 * time.Second)
 
 	if len(peer_errors) >= 1 {
 		io.WriteString(w, "\n\tPeering issues found during our diagnostic checks\n\n")
@@ -338,16 +314,10 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	// Checking if engines are still in turtle mode
 	if peer_whitelist >= 10 && best_height > 0 && best_height >= our_height {
 		globals.NetworkTurtle = false
-	} else {
-		globals.NetworkTurtle = true
 	}
 
-	// set next diagnostic check
-	if globals.NetworkTurtle {
-		globals.NextDiagnocticCheck = time.Now().Unix() + 60
-	} else {
-		globals.NextDiagnocticCheck = time.Now().Unix() + 300
-	}
+	// set next diagnostic check in 1 hour
+	globals.NextDiagnocticCheck = time.Now().Unix() + config.DiagnosticCheckDelay
 
 	// mempool_tx_count := len(chain.Mempool.Mempool_List_TX())
 	// regpool_tx_count := len(chain.Regpool.Regpool_List_TX())
@@ -355,7 +325,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	if globals.NetworkTurtle {
 		critical_errors = append(critical_errors, "Node in turtle mode")
 		time.Sleep(100 * time.Millisecond)
-		if peer_count >= int(p2p.Min_Peers) {
+		if peer_count < int(p2p.Min_Peers) {
 			io.WriteString(w, fmt.Sprintf("\tWe have less peer(s) than we want, we have %d and we would ideally like to have %d\n", peer_count, p2p.Min_Peers))
 			critical_errors = append(critical_errors, fmt.Sprintf("We have %d of %d peers requested\n", peer_count, p2p.Min_Peers))
 		} else {
@@ -366,10 +336,11 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 	var total_peer_sending_error_count int = 0
 	var total_peer_receiving_error_count int = 0
-
+	var collision_count int = 0
 	for _, ps := range p2p.Pstat {
 		total_peer_sending_error_count += len(ps.Sending_Errors)
 		total_peer_receiving_error_count += len(ps.Receiving_Errors)
+		collision_count += len(ps.Collision_Errors)
 	}
 
 	io.WriteString(w, "\n\n*** Captain, our diagnostic report ****\n\n")
@@ -380,7 +351,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 	io.WriteString(w, "\n\tPeer Summary:\n")
 	io.WriteString(w, fmt.Sprintf("\t\tOur Peer ID: %d\n", p2p.GetPeerID()))
-	io.WriteString(w, fmt.Sprintf("\t\tTotal Logged Peer Error(s): %d Sending - %d Receiving\n", total_peer_sending_error_count, total_peer_receiving_error_count))
+	io.WriteString(w, fmt.Sprintf("\t\tLogged Peer Error(s): %d Sending - %d Receiving - Collisions: %d\n", total_peer_sending_error_count, total_peer_receiving_error_count, collision_count))
 	io.WriteString(w, fmt.Sprintf("\t\tCurrent Peer Count %d (Wanted: %d) - %d is currently connected\n", peer_count, p2p.Min_Peers, connected_count))
 	io.WriteString(w, fmt.Sprintf("\t\t%d Peer(s) is running same verion as us, and %d is running a different version\n", good_daemon_count, bad_daemon_count))
 	io.WriteString(w, fmt.Sprintf("\t\t%d Peer(s) is same height as us, and %d is a at different height\n", good_height_count, bad_height_count))

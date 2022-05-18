@@ -67,81 +67,8 @@ type Peer struct {
 	sync.Mutex
 }
 
-type BlockInsertCounter struct {
-	Blocks_Accepted uint64
-	Blocks_Rejected uint64
-}
-
-var BlockInsertCount = map[string]*BlockInsertCounter{}
-
-func LogAccept(Address string) {
-	Address = ParseIPNoError(Address)
-
-	_, stat := BlockInsertCount[Address]
-	if !stat {
-		var NewMetric BlockInsertCounter
-		BlockInsertCount[Address] = &NewMetric
-	}
-
-	BlockInsertCount[Address].Blocks_Accepted++
-}
-
-func LogReject(Address string) {
-	Address = ParseIPNoError(Address)
-
-	_, stat := BlockInsertCount[Address]
-	if !stat {
-		var NewMetric BlockInsertCounter
-		BlockInsertCount[Address] = &NewMetric
-	}
-
-	BlockInsertCount[Address].Blocks_Rejected++
-}
-
-func CountBlock(Address string) {
-
-}
-
 var peer_map = map[string]*Peer{}
 var peer_mutex sync.Mutex
-
-type BlockSendingError struct {
-	Block_ID            string
-	Block_Type          string
-	When                time.Time
-	Error_Message       string
-	Destination_Peer_ID uint64
-	Address             string
-}
-
-type BlockReceivingError struct {
-	Block_ID      string
-	Block_Type    string
-	When          time.Time
-	Error_Message string
-	From_Peer_ID  uint64
-	Address       string
-}
-
-type BlockCollisionError struct {
-	Block_ID      string
-	Block_Type    string
-	When          time.Time
-	Error_Message string
-	Peer_ID       uint64
-	Address       string
-	Incoming      bool
-}
-
-type PeerStats struct {
-	Peer_ID          uint64
-	Address          string
-	Sending_Errors   []*BlockSendingError
-	Receiving_Errors []*BlockReceivingError
-	Collision_Errors []*BlockCollisionError
-}
-
-var Pstat = map[string]*PeerStats{}
 
 // loads peers list from disk
 func load_peer_list() {
@@ -246,8 +173,8 @@ func Peer_Add(p *Peer) {
 
 	}
 
-	if _, ok := autoban_map[ParseIPNoError(p.Address)]; ok {
-		logger.V(1).Info(fmt.Sprintf("Peer (%s) on Auto Ban List - Blocked", p.Address))
+	if _, ok := permban_map[ParseIPNoError(p.Address)]; ok {
+		logger.V(1).Info(fmt.Sprintf("Peer (%s) on Perm Ban List - Blocked", p.Address))
 		Ban_Address(ParseIPNoError(p.Address), 3600)
 		return
 	}
@@ -274,20 +201,6 @@ func SetLogger(newlogger *logr.Logger) {
 	logger = *newlogger
 }
 
-func ClearAllFailed() {
-
-	peer_mutex.Lock()
-	defer peer_mutex.Unlock()
-
-	for _, p := range peer_map {
-		p.FailCount = 0
-	}
-
-	var newPstat = map[string]*PeerStats{}
-	Pstat = newPstat
-
-}
-
 func PrintBlockErrors() {
 
 	peer_mutex.Lock()
@@ -295,10 +208,17 @@ func PrintBlockErrors() {
 
 	fmt.Printf("\nPeer Block Distribution - Errors Log\n")
 
-	fmt.Printf("\n%-16s %-22s %-32s %-22s\n", "Remote Addr", "Peer ID", "Errors (Receiving / Sending)", "Lastest Error")
+	fmt.Printf("\n%-16s %-22s %-32s %-8s %-22s\n", "Remote Addr", "Peer ID", "Errors (Receiving / Sending)", "BTS", "Lastest Error")
 	error_count := 0
 	peer_count := 0
 	for _, stat := range Pstat {
+
+		var success_rate float64
+		_, ps := BlockInsertCount[stat.Address]
+		if ps {
+			total := (BlockInsertCount[stat.Address].Blocks_Accepted + BlockInsertCount[stat.Address].Blocks_Rejected)
+			success_rate = float64(float64(float64(BlockInsertCount[stat.Address].Blocks_Accepted) / float64(total) * 100))
+		}
 
 		errors_text := fmt.Sprintf("%d/%d Collisions: %d", len(stat.Receiving_Errors), len(stat.Sending_Errors), len(stat.Collision_Errors))
 
@@ -316,7 +236,7 @@ func PrintBlockErrors() {
 				latest_error = stat.Receiving_Errors[len(stat.Receiving_Errors)-1].When
 			}
 		}
-		fmt.Printf("%-16s %-22d %-32s %-10s\n", stat.Address, stat.Peer_ID, errors_text, latest_error.Format(time.RFC1123))
+		fmt.Printf("%-16s %-22d %-32s %-8.2f %-10s\n", stat.Address, stat.Peer_ID, errors_text, success_rate, latest_error.Format(time.RFC1123))
 
 		peer_count++
 		error_count += len(stat.Sending_Errors) + len(stat.Receiving_Errors)
@@ -338,6 +258,13 @@ func PrintPeerErrors(Address string) {
 
 	if len(Address) <= 0 {
 		return
+	}
+
+	_, ps := BlockInsertCount[Address]
+	if ps {
+		total := (BlockInsertCount[Address].Blocks_Accepted + BlockInsertCount[Address].Blocks_Rejected)
+		success_rate := float64(float64(float64(BlockInsertCount[Address].Blocks_Accepted) / float64(total) * 100))
+		fmt.Printf("Block Transmission Success: %d Accepted / %d Rejected - %.2f%%", BlockInsertCount[Address].Blocks_Accepted, BlockInsertCount[Address].Blocks_Rejected, success_rate)
 	}
 
 	for _, stat := range Pstat {

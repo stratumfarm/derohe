@@ -140,7 +140,8 @@ func P2P_Init(params map[string]interface{}) error {
 	}
 
 	chain = params["chain"].(*blockchain.Blockchain)
-	load_ban_list()  // load ban list
+	load_ban_list() // load ban list
+	load_permban_list()
 	load_peer_list() // load old list if availble
 
 	// if user provided a sync node, connect with it
@@ -168,6 +169,7 @@ func P2P_Init(params map[string]interface{}) error {
 	globals.Cron.AddFunc("@every 10s", chunks_clean_up)         // clean chunks
 	globals.Cron.AddFunc("@every 60s", save_peer_list)          // save peer list so we can use it for monitoring
 	globals.Cron.AddFunc("@every 60s", save_ban_list)           // save peer list so we can use it for monitoring
+	globals.Cron.AddFunc("@every 60s", save_permban_list)
 
 	go time_check_routine() // check whether server time is in sync using ntp
 

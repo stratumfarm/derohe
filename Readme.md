@@ -13,7 +13,8 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
  * Diagnostic Check and Troubleshooting Tips - Identify bad actors
  * More Peer Info
  * Logging of Peer Errors
- * Auto Ban IPs
+ * Permanent Ban IP
+ * Permanent Ban List Persistency - Save to file
  * Save and Display Uptime
  * More mining stats
  * Improved Peer List
@@ -29,7 +30,9 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
  * Defaulting to use https://dero-node.mysrv.cloud/ as remote node
  * Default integrator address set to dero1qy07h9mk6xxf2k4x0ymdpezvksjy0talskhpvqmat3xk3d9wczg5jqqvwl0sn
  * FIX: Report seconds not mili seconds in simulator
- * Auto ban - bad actors injecting bad minis into the engine
+ * Threshold to highlight Peers with Block Transmission Success Rate below x
+ * Threshold to highlight Peers latency below x threshold
+ * Clear peers stats, individual or all
 
 ### Screen Shots
 

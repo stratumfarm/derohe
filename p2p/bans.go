@@ -53,7 +53,7 @@ import (
 // disableban address  // this address will never be banned
 
 var ban_map = map[string]uint64{}     // keeps ban maps
-var autoban_map = map[string]uint64{} // keeps ban maps
+var permban_map = map[string]uint64{} // keeps ban maps
 
 var ban_mutex sync.Mutex
 
@@ -84,6 +84,29 @@ func load_ban_list() {
 	}
 }
 
+// loads peers list from disk
+func load_permban_list() {
+
+	ban_file := filepath.Join(globals.GetDataDirectory(), "permban_list.json")
+
+	if _, err := os.Stat(ban_file); errors.Is(err, os.ErrNotExist) {
+		return // since file doesn't exist , we cannot load it
+	}
+	file, err := os.Open(ban_file)
+	if err != nil {
+		logger.Error(err, "opening ban data file")
+	} else {
+		defer file.Close()
+		decoder := json.NewDecoder(file)
+		err = decoder.Decode(&permban_map)
+		if err != nil {
+			logger.Error(err, "Error unmarshalling ban data")
+		} else { // successfully unmarshalled data
+			logger.V(1).Info("Successfully loaded perm bans from file", "ban_count", (len(permban_map)))
+		}
+	}
+}
+
 //save ban list to disk
 func save_ban_list() {
 
@@ -104,6 +127,26 @@ func save_ban_list() {
 			logger.Error(err, "Error unmarshalling ban data")
 		} else { // successfully unmarshalled data
 			logger.V(1).Info("Successfully saved bans to file", "count", (len(ban_map)))
+		}
+	}
+}
+
+//save ban list to disk
+func save_permban_list() {
+
+	ban_file := filepath.Join(globals.GetDataDirectory(), "permban_list.json")
+	file, err := os.Create(ban_file)
+	if err != nil {
+		logger.Error(err, "creating perm ban data file")
+	} else {
+		defer file.Close()
+		encoder := json.NewEncoder(file)
+		encoder.SetIndent("", "\t")
+		err = encoder.Encode(&permban_map)
+		if err != nil {
+			logger.Error(err, "Error unmarshalling ban data")
+		} else { // successfully unmarshalled data
+			logger.V(1).Info("Successfully saved perm bans to file", "count", (len(permban_map)))
 		}
 	}
 }
@@ -189,7 +232,7 @@ func IsAddressInBanList(address string) bool {
 	}
 
 	// if it's a subnet or direct ip, do instant check
-	if _, ok := autoban_map[address]; ok {
+	if _, ok := permban_map[address]; ok {
 		return true
 	}
 
@@ -216,7 +259,7 @@ func IsAddressInBanList(address string) bool {
 // manual bans are always placed
 // address can be an address or a subnet
 
-func AutoBan_Address(address string) (err error) {
+func PermBan_Address(address string) (err error) {
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
 
@@ -226,8 +269,9 @@ func AutoBan_Address(address string) (err error) {
 		return
 	}
 
-	logger.Info(fmt.Sprintf("Address: %s - Added to Auto-Ban List", address))
-	autoban_map[address] = uint64(time.Now().UTC().Unix())
+	logger.Info(fmt.Sprintf("Address: %s - Added to Perm-Ban List", address))
+	permban_map[address] = uint64(time.Now().UTC().Unix())
+	go save_permban_list()
 	go Ban_Address(address, 3600)
 	return
 }
@@ -285,9 +329,9 @@ func UnBan_Address(address string) (err error) {
 	delete(ban_map, address)
 
 	// remove from autoban
-	_, ab := autoban_map[address]
+	_, ab := permban_map[address]
 	if ab {
-		delete(autoban_map, address)
+		delete(permban_map, address)
 	}
 
 	return
@@ -321,19 +365,19 @@ func BanList_Print() {
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
 
-	fmt.Printf("%-22s %-22s %-8s\n", "Addr", "Seconds to unban", "Auto Ban")
+	fmt.Printf("%-22s %-22s %-8s\n", "Addr", "Seconds to unban", "Perm Ban")
 	for k, v := range ban_map {
 
-		is_autoban := "no"
-		_, ab := autoban_map[k]
+		is_permban := "no"
+		_, ab := permban_map[k]
 		if ab {
-			is_autoban = "yes"
+			is_permban = "yes"
 		}
 
-		fmt.Printf("%-22s %-22d %-8s\n", k, v-uint64(time.Now().UTC().Unix()), is_autoban)
+		fmt.Printf("%-22s %-22d %-8s\n", k, v-uint64(time.Now().UTC().Unix()), is_permban)
 	}
 
-	fmt.Printf("Ban List contains: %d - Auto Ban List: %d\n", len(ban_map), len(autoban_map))
+	fmt.Printf("Ban List contains: %d - Perm Ban List: %d\n", len(ban_map), len(permban_map))
 }
 
 // this function return peer count which have successful handshake

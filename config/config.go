@@ -143,4 +143,6 @@ var OperatorName string = "Hansen33"
 var P2PTurbo bool = true
 var P2PBWFactor int64 = 2
 var GETWorkJobDispatchTime time.Duration
-var AutoBanBad bool = true
+var DiagnosticCheckDelay int64 = 3600
+var BlockRejectThreshold int64 = 80
+var PeerLatencyThreshold = time.Duration(500 * time.Millisecond)

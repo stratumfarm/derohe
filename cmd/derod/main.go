@@ -219,7 +219,7 @@ func main() {
 	}
 
 	if config.GETWorkJobDispatchTime.Milliseconds() < 40 {
-		config.GETWorkJobDispatchTime = 250 * time.Millisecond
+		config.GETWorkJobDispatchTime = 500 * time.Millisecond
 	}
 
 	go derodrpc.Getwork_server()
@@ -951,10 +951,10 @@ restart_loop:
 
 		case command == "uptime":
 
-			hname, _ := os.Hostname()
+			hostname, _ := os.Hostname()
 
-			fmt.Printf("Hostname: %s - Uptime Since: %s\n", hname, globals.Uptime.Format(time.RFC1123))
-			fmt.Printf("Uptime: %s\n", time.Now().Sub(globals.Uptime).String())
+			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.Uptime).Round(time.Second).String())
+			fmt.Printf("Uptime Since: %s\n\n", globals.Uptime.Format(time.RFC1123))
 
 		case command == "peer_info":
 
@@ -993,8 +993,9 @@ restart_loop:
 						io.WriteString(l.Stderr(), "min peers need to be number\n")
 					} else {
 						p2p.Min_Peers = i
-						p2p.Max_Peers = p2p.Min_Peers * 2
-
+						if p2p.Max_Peers < p2p.Min_Peers {
+							p2p.Max_Peers = p2p.Min_Peers
+						}
 					}
 				}
 
@@ -1008,6 +1009,35 @@ restart_loop:
 					}
 				}
 
+				if line_parts[1] == "diagnostic_delay" && len(line_parts) == 3 {
+					i, err := strconv.ParseInt(line_parts[2], 10, 64)
+					if err != nil {
+						io.WriteString(l.Stderr(), "diagnostic_delay in seconds\n")
+					} else {
+						config.DiagnosticCheckDelay = i
+
+					}
+				}
+
+				if line_parts[1] == "block_reject_threshold" && len(line_parts) == 3 {
+					i, err := strconv.ParseInt(line_parts[2], 10, 64)
+					if err != nil {
+						io.WriteString(l.Stderr(), "diagnostic_delay in seconds\n")
+					} else {
+						config.BlockRejectThreshold = i
+
+					}
+				}
+
+				if line_parts[1] == "peer_latency_threshold" && len(line_parts) == 3 {
+					i, err := strconv.ParseInt(line_parts[2], 10, 64)
+					if err != nil {
+						io.WriteString(l.Stderr(), "peer_latency_threshold in seconds\n")
+					} else {
+						config.PeerLatencyThreshold = time.Duration(i * int64(time.Millisecond))
+					}
+				}
+
 				if line_parts[1] == "job_dispatch_time" && len(line_parts) == 3 {
 					i, err := strconv.ParseInt(line_parts[2], 10, 64)
 					if err != nil {
@@ -1015,14 +1045,6 @@ restart_loop:
 					} else {
 						config.GETWorkJobDispatchTime = time.Duration(i * int64(time.Millisecond))
 
-					}
-				}
-
-				if line_parts[1] == "bad_actor" {
-					if config.AutoBanBad {
-						config.AutoBanBad = false
-					} else {
-						config.AutoBanBad = true
 					}
 				}
 
@@ -1047,33 +1069,33 @@ restart_loop:
 			}
 
 			io.WriteString(l.Stdout(), " Config Menu\n\n")
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20s %-20s\n\n", "Option", "Value", "How to change"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n\n", "Option", "Value", "How to change"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20s %-20s\n", "Operator Name", config.OperatorName, "config operator <name>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Operator Name", config.OperatorName, "config operator <name>"))
 			whitelist_incoming := "YES"
 			if !config.WhitelistIncoming {
 				whitelist_incoming = "no"
 			}
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20s %-20s\n", "Whitelist Incoming Peers", whitelist_incoming, "config whitelist_incoming"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Whitelist Incoming Peers", whitelist_incoming, "config whitelist_incoming"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20d %-20s\n", "P2P Min Peers", p2p.Min_Peers, "config min_peers <num>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Min Peers", p2p.Min_Peers, "config min_peers <num>"))
 
 			turbo := "off"
 			if config.P2PTurbo {
 				turbo = "ON"
 			}
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20s %-20s\n", "P2P Turbo", turbo, "config p2p_turbo"))
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20d %-20s\n", "P2P BW Factor", config.P2PBWFactor, "config p2p_bwfactor <num>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "P2P Turbo", turbo, "config p2p_turbo"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P BW Factor", config.P2PBWFactor, "config p2p_bwfactor <num>"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20s %-20s\n", "GETWORK - Job will be dispatch time", config.GETWorkJobDispatchTime, "config job_dispatch_time <miliseconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "GETWORK - Job will be dispatch time", config.GETWorkJobDispatchTime, "config job_dispatch_time <miliseconds>"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20d %-20s\n", "Peer Log Expiry (sec)", globals.ErrorLogExpirySeconds, "config peer_log_expiry <seconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Peer Log Expiry (sec)", globals.ErrorLogExpirySeconds, "config peer_log_expiry <seconds>"))
 
-			bad_actor := "off"
-			if config.AutoBanBad {
-				bad_actor = "ON"
-			}
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-40s %-20s %-20s\n", "Auto Ban - Bad Actors", bad_actor, "config bad_actor"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Auto run diagnostic sequence every (seconds)", config.DiagnosticCheckDelay, "config diagnostic_delay <seconds>"))
+
+			io.WriteString(l.Stdout(), fmt.Sprintf("\n\tDiagnostic Thresholds - use (run_diagnostic) to test\n"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Block Transmission Success Rate Threshold", config.BlockRejectThreshold, "config block_reject_threshold <seconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Peer Latency Threshold (seconds)", time.Duration(config.PeerLatencyThreshold).Round(time.Millisecond).String(), "config peer_latency_threshold <seconds>"))
 
 			io.WriteString(l.Stdout(), "\n")
 
@@ -1088,9 +1110,20 @@ restart_loop:
 				p2p.PrintBlockErrors()
 			}
 
-		case command == "clear_peer_errors":
+		case command == "clear_all_peer_stats":
 			fmt.Print("Cleaing FailCount for all peers")
-			go p2p.ClearAllFailed()
+			go p2p.ClearAllStats()
+
+		case command == "clear_peer_stats":
+
+			var ip string
+
+			if len(line_parts) == 2 {
+				ip = line_parts[1]
+				go p2p.ClearPeerStats(ip)
+			} else {
+				fmt.Printf("usage: clear_peer_stats <ip address>\n")
+			}
 
 		case command == "peer_list": // print peer list
 
@@ -1180,14 +1213,14 @@ restart_loop:
 			}
 			dump(line_parts[1])
 
-		case command == "autoban":
+		case command == "permban":
 
 			if len(line_parts) >= 3 || len(line_parts) == 1 {
 				fmt.Printf("IP address required to ban\n")
 				break
 			}
 
-			err := p2p.AutoBan_Address(line_parts[1]) // default ban is 10 minutes
+			err := p2p.PermBan_Address(line_parts[1]) // default ban is 10 minutes
 			if err != nil {
 				fmt.Printf("err parsing address %s", err)
 				break
@@ -1376,15 +1409,17 @@ func usage(w io.Writer) {
 
 	io.WriteString(w, "\n\nHansen33-Mod commands:\n")
 
-	io.WriteString(w, "\t\033[1mautoban <ip>\033[0m\t\tAuto ban IP - make sure IP stays banned until unban\n")
+	io.WriteString(w, "\t\033[1mpermban <ip>\033[0m\t\tPermanent ban IP - make sure IP stays banned until unban\n")
 	io.WriteString(w, "\t\033[1mconfig\033[0m\t\tSee and set running config options\n")
 	io.WriteString(w, "\t\033[1mrun_diagnostics\033[0m\t\tRun Diagnostics Checks\n")
 	io.WriteString(w, "\t\033[1muptime\033[0m\t\tDisplay Daemon Uptime Info\n")
 	io.WriteString(w, "\t\033[1mdebug\033[0m\t\tToggle debug ON/OFF\n")
-	io.WriteString(w, "\t\033[1mpeer_list (modifies)\033[0m\tPrint peer list\n")
+	io.WriteString(w, "\t\033[1mpeer_list (modified)\033[0m\tPrint peer list\n")
+	io.WriteString(w, "\t\033[1msyncinfo (modified)\033[0m\tPrint more peer list\n")
 	io.WriteString(w, "\t\033[1mpeer_info\033[0m\tPrint peer information. To see details use - peer_info <ip>\n")
 	io.WriteString(w, "\t\033[1mpeer_errors\033[0m\tPrint peer errors. To see details use - peer_errors <ip>\n")
-	io.WriteString(w, "\t\033[1mclear_peer_errors\033[0m\tPrint peer errors. To see details use - peer_errors <ip>\n")
+	io.WriteString(w, "\t\033[1mclear_all_peer_stats\033[0m\tClear all peers stats\n")
+	io.WriteString(w, "\t\033[1mclear_peer_stats\033[0m\tClear peer stats. To see details use - clear_peer_stats <ip>\n")
 
 }
 
@@ -1415,11 +1450,12 @@ var completer = readline.NewPrefixCompleter(
 
 	readline.PcItem("uptime"),
 	readline.PcItem("peer_errors"),
-	readline.PcItem("clear_peer_errors"),
+	readline.PcItem("clear_all_peer_stats"),
+	readline.PcItem("clear_peer_stats"),
 	readline.PcItem("peer_info"),
 	readline.PcItem("debug"),
 	readline.PcItem("run_diagnostics"),
-	readline.PcItem("autoban"),
+	readline.PcItem("permban"),
 	readline.PcItem("config"),
 )
 
