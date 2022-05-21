@@ -76,6 +76,7 @@ func GetInfo(ctx context.Context) (result rpc.GetInfo_Result, err error) {
 	//result.Target_Height = uint64(chain.Get_Height())
 
 	result.Tx_pool_size = uint64(len(chain.Mempool.Mempool_List_TX()))
+	result.Reg_pool_size = uint64(len(chain.Regpool.Regpool_List_TX()))
 	// get dynamic fees per kb, used by wallet for tx creation
 	//result.Dynamic_fee_per_kb = config.FEE_PER_KB
 	//result.Median_Block_Size = config.CRYPTONOTE_MAX_BLOCK_SIZE
@@ -94,9 +95,14 @@ func GetInfo(ctx context.Context) (result rpc.GetInfo_Result, err error) {
 	in, out := p2p.Peer_Direction_Count()
 	result.Incoming_connections_count = in
 	result.Outgoing_connections_count = out
-	result.White_peerlist_size = p2p.Peer_Whitelist_Counts()
+	result.OurHeight = chain.Get_Height()
+	result.BestHeight, result.BestTopoHeight = p2p.Best_Peer_Height()
+	result.HeightDelta = result.BestHeight - result.OurHeight
+	result.PeerCount = p2p.Peer_Count()
+	result.PeerWhitelist = p2p.Peer_Count_Whitelist()
+	result.PeerLatency = globals.GetOffsetP2P().Round(time.Millisecond).Milliseconds()
 	result.Miners = CountMiners()
-	result.Miniblocks_In_Memory = globals.Miniblocks_In_Memory
+	result.Miniblocks_In_Memory = chain.MiniBlocks.Count()
 	result.CountMinisRejected = CountMinisRejected
 	result.CountMinisAccepted = CountMinisAccepted
 	result.CountBlocks = CountBlocks
