@@ -47,6 +47,7 @@ import (
 
 var Subsystem_Active uint32 // atomic counter to show how many subsystems are active
 var Exit_In_Progress bool
+var StartTime = time.Now()
 
 // on init this variable is updated to setup global config in 1 go
 var Config config.CHAIN_CONFIG = config.Mainnet // default is mainnnet
@@ -66,6 +67,7 @@ var ErrorLogExpirySeconds int64 = 600
 
 var DiagnocticCheckRunning bool = false
 var NextDiagnocticCheck int64 = time.Now().Unix() + 15
+var BlockPopCount int64
 
 // get current time with clock offset applied
 func Time() time.Time {
