@@ -536,7 +536,6 @@ restart_loop:
 				logger.Info("\n")
 
 			}
-
 		case command == "regpool_print":
 			chain.Regpool.Regpool_Print()
 
@@ -747,8 +746,24 @@ restart_loop:
 			bl, err := chain.Load_BL_FROM_ID(hash)
 			if err != nil {
 				fmt.Printf("Err %s\n", err)
+				continue
 			}
-			fmt.Printf("%s\n", bl.String())
+
+			header, _ := derodrpc.GetBlockHeader(chain, hash)
+			fmt.Fprintf(os.Stdout, "BLID:%s\n", bl.GetHash())
+			fmt.Fprintf(os.Stdout, "Major version:%d Minor version: %d ", bl.Major_Version, bl.Minor_Version)
+			fmt.Fprintf(os.Stdout, "Height:%d ", bl.Height)
+			fmt.Fprintf(os.Stdout, "Timestamp:%d  (%s)\n", bl.Timestamp, bl.GetTimestamp())
+			for i := range bl.Tips {
+				fmt.Fprintf(os.Stdout, "Past %d:%s\n", i, bl.Tips[i])
+			}
+			for i, mbl := range bl.MiniBlocks {
+				fmt.Fprintf(os.Stdout, "Mini %d:%s %s\n", i, mbl, header.Miners[i])
+			}
+			for i, txid := range bl.Tx_hashes {
+				fmt.Fprintf(os.Stdout, "tx %d:%s\n", i, txid)
+			}
+
 			fmt.Printf("difficulty: %s\n", chain.Load_Block_Difficulty(hash).String())
 			fmt.Printf("TopoHeight: %d\n", chain.Load_Block_Topological_order(hash))
 
@@ -865,17 +880,18 @@ restart_loop:
 			fmt.Printf("Uptime Since: %s\n\n", globals.Uptime.Format(time.RFC1123))
 
 			fmt.Printf("Network %s Height %d  NW Hashrate %0.03f MH/sec  Peers %d inc, %d out  MEMPOOL size %d REGPOOL %d  Total Supply %s DERO \n", globals.Config.Name, chain.Get_Height(), float64(chain.Get_Network_HashRate())/1000000.0, inc, out, mempool_tx_count, regpool_tx_count, globals.FormatMoney(supply))
+			fmt.Printf("Block Pop Count: %d\n", globals.BlockPopCount)
 
 			tips := chain.Get_TIPS()
 			fmt.Printf("Tips ")
 			for _, tip := range tips {
-				fmt.Printf(" %s(%d)", tip, chain.Load_Height_for_BL_ID(tip))
+				fmt.Printf(" %s(%d)\n", tip, chain.Load_Height_for_BL_ID(tip))
 			}
 
 			if chain.LocatePruneTopo() >= 1 {
-				fmt.Printf("Chain is pruned till %d\n", chain.LocatePruneTopo())
+				fmt.Printf("\nChain is pruned till %d\n", chain.LocatePruneTopo())
 			} else {
-				fmt.Printf("Chain is in full mode.\n")
+				fmt.Printf("\nChain is in full mode.\n")
 			}
 			fmt.Printf("Integrator address %s\n", chain.IntegratorAddress().String())
 			fmt.Printf("UTC time %s  (as per system clock) \n", time.Now().UTC())
@@ -886,12 +902,12 @@ restart_loop:
 			fmt.Print("\nPeer Stats:\n")
 			fmt.Printf("\tPeer ID: %d\n", p2p.GetPeerID())
 
-			blocksMined := (derodrpc.CountMinisAccepted + derodrpc.CountBlocks) - derodrpc.CountMinisRejected
+			blocksMinted := (derodrpc.CountMinisAccepted + derodrpc.CountBlocks)
 			fmt.Print("\nMining Stats:\n")
-			fmt.Printf("\tBlock Minted: %d (MB+IB)\n", (derodrpc.CountMinisAccepted+derodrpc.CountBlocks)-derodrpc.CountMinisRejected)
-			if blocksMined > 0 {
-				fmt.Printf("\tMinting Velocity: %.4f MB/h\t%.4f MB/d (since uptime)\n", float64(float64(derodrpc.CountMinisAccepted)/time.Now().Sub(globals.Uptime).Seconds())*3600,
-					float64(float64(derodrpc.CountMinisAccepted)/time.Now().Sub(globals.Uptime).Seconds())*3600*24)
+			fmt.Printf("\tBlock Minted: %d (MB+IB)\n", blocksMinted)
+			if blocksMinted > 0 {
+				fmt.Printf("\tMinting Velocity: %.4f MB/h\t%.4f MB/d (since uptime)\n", float64(float64(blocksMinted)/time.Now().Sub(globals.Uptime).Seconds())*3600,
+					float64(float64(blocksMinted)/time.Now().Sub(globals.Uptime).Seconds())*3600*24)
 			} else {
 				fmt.Print("\tMinting Velocity: 0.0000 MB/h\t0.0000MB/d (since uptime)\n")
 			}
