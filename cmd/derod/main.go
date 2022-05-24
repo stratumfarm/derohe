@@ -26,6 +26,7 @@ import (
 	"math/big"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -139,7 +140,7 @@ func main() {
 	// parse arguments and setup logging , print basic information
 	exename, _ := os.Executable()
 	globals.InitializeLog(l.Stdout(), &lumberjack.Logger{
-		Filename:   exename + ".log",
+		Filename:   path.Base(exename) + ".log",
 		MaxSize:    100, // megabytes
 		MaxBackups: 2,
 	})

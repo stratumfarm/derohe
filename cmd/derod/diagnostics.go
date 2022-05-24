@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -33,7 +34,7 @@ func ToggleDebug(l *readline.Instance, log_level int8) {
 	logger.Info(fmt.Sprintf("Updating log level to (%d) .. ", log_level))
 
 	globals.SetLogLevel(l.Stdout(), &lumberjack.Logger{
-		Filename:   exename + ".log",
+		Filename:   path.Base(exename) + "-diags.log",
 		MaxSize:    100, // megabytes
 		MaxBackups: 2,
 	}, (0 - int(log_level)))
