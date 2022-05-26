@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deroproject/derohe/config"
 	"github.com/deroproject/derohe/globals"
 )
 
@@ -385,4 +386,18 @@ func Ban_Count() (Count uint64) {
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
 	return uint64(len(ban_map))
+}
+
+func Ban_Outdated_peers() {
+
+	for _, c := range UniqueConnections() {
+
+		if c.DaemonVersion != config.Version.String() {
+			logger.Info(fmt.Sprintf("Banning Peer: %s", c.Addr.String()))
+			go Ban_Address(ParseIPNoError(c.Addr.String()), 3600)
+
+		}
+
+	}
+
 }

@@ -146,3 +146,4 @@ var GETWorkJobDispatchTime time.Duration
 var DiagnosticCheckDelay int64 = 3600
 var BlockRejectThreshold int64 = 80
 var PeerLatencyThreshold = time.Duration(500 * time.Millisecond)
+var AutoBan_Old = false

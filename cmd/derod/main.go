@@ -972,6 +972,10 @@ restart_loop:
 			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String())
 			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
 
+		case command == "ban_old":
+
+			p2p.Ban_Outdated_peers()
+
 		case command == "peer_info":
 
 			var error_peer string
@@ -1064,6 +1068,14 @@ restart_loop:
 					}
 				}
 
+				if line_parts[1] == "autoban_old" {
+					if config.AutoBan_Old {
+						config.AutoBan_Old = false
+					} else {
+						config.AutoBan_Old = true
+					}
+				}
+
 				if line_parts[1] == "p2p_turbo" {
 					if config.P2PTurbo {
 						config.P2PTurbo = false
@@ -1106,6 +1118,12 @@ restart_loop:
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "GETWORK - Job will be dispatch time", config.GETWorkJobDispatchTime, "config job_dispatch_time <miliseconds>"))
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Peer Log Expiry (sec)", globals.ErrorLogExpirySeconds, "config peer_log_expiry <seconds>"))
+
+			ban_old := "OFF"
+			if config.AutoBan_Old {
+				ban_old = "ON"
+			}
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Auto Ban Old", ban_old, "config autoban_old"))
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Auto run diagnostic sequence every (seconds)", config.DiagnosticCheckDelay, "config diagnostic_delay <seconds>"))
 
@@ -1473,6 +1491,7 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("run_diagnostics"),
 	readline.PcItem("permban"),
 	readline.PcItem("config"),
+	readline.PcItem("ban_old"),
 )
 
 func filterInput(r rune) (rune, bool) {

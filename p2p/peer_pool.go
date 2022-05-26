@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/deroproject/derohe/config"
 	"github.com/deroproject/derohe/globals"
 	"github.com/go-logr/logr"
 )
@@ -170,6 +171,18 @@ func Peer_Add(p *Peer) {
 		// logger.Infof("Peer is ourselves, discard")
 		return
 
+	}
+
+	if config.AutoBan_Old {
+		for _, c := range UniqueConnections() {
+
+			if c.DaemonVersion != config.Version.String() {
+				logger.Info(fmt.Sprintf("Banning Peer: %s", c.Addr.String()))
+				go Ban_Address(ParseIPNoError(c.Addr.String()), 3600)
+
+			}
+
+		}
 	}
 
 	if _, ok := permban_map[ParseIPNoError(p.Address)]; ok {
