@@ -96,7 +96,7 @@ func GetInfo(ctx context.Context) (result rpc.GetInfo_Result, err error) {
 	result.Outgoing_connections_count = out
 	result.White_peerlist_size = p2p.Peer_Whitelist_Counts()
 	result.Miners = CountMiners()
-	result.Miniblocks_In_Memory = globals.Miniblocks_In_Memory
+	result.Miniblocks_In_Memory = chain.MiniBlocks.Count()
 	result.CountMinisRejected = CountMinisRejected
 	result.CountMinisAccepted = CountMinisAccepted
 	result.CountBlocks = CountBlocks

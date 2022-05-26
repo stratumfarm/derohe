@@ -62,7 +62,6 @@ var TimeIsInSync bool            // whether time is in sync, if yes we do not us
 var TimeIsInSyncNTP bool
 var Uptime = time.Now()
 var NetworkTurtle bool = true
-var Miniblocks_In_Memory int
 var ErrorLogExpirySeconds int64 = 600
 
 var DiagnocticCheckRunning bool = false

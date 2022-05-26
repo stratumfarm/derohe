@@ -1,6 +1,8 @@
 package p2p
 
 import (
+	"fmt"
+	"regexp"
 	"sync"
 	"time"
 )
@@ -142,4 +144,97 @@ func ClearPeerStats(Address string) {
 			p.Blocks_Rejected = 0
 		}
 	}
+}
+
+func PeerLogConnectionFail(Address string, Block_Type string, Block_ID string, PeerID uint64, Message string) {
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	Address = ParseIPNoError(Address)
+	// Create stats object if not already exists
+	// Create stats object if not already exists
+	_, stat_exists := Pstat[Address]
+	if !stat_exists {
+		var peer_stats PeerStats
+		peer_stats.Peer_ID = PeerID
+		peer_stats.Address = Address
+		Pstat[Address] = &peer_stats
+	}
+
+	is_collision := regexp.MustCompile("^collision ")
+	is_tip_issue := regexp.MustCompile("^tip could not be expanded")
+
+	if is_collision.Match([]byte(Message)) || is_tip_issue.Match([]byte(Message)) {
+		var CollisionError BlockCollisionError
+		CollisionError.Block_ID = Block_ID
+		CollisionError.Block_Type = Block_Type
+		CollisionError.Address = Address
+		CollisionError.When = time.Now()
+		CollisionError.Error_Message = Message
+		CollisionError.Incoming = false
+		Pstat[Address].Collision_Errors = append(Pstat[Address].Collision_Errors, &CollisionError)
+
+	} else {
+		// Log error
+		var ConnectionError BlockSendingError
+		ConnectionError.Block_ID = Block_ID
+		ConnectionError.Block_Type = Block_Type
+		ConnectionError.Address = Address
+		ConnectionError.When = time.Now()
+		ConnectionError.Error_Message = Message
+		ConnectionError.Destination_Peer_ID = PeerID
+		Pstat[Address].Sending_Errors = append(Pstat[Address].Sending_Errors, &ConnectionError)
+	}
+
+	go Peer_SetFail(Address)
+	go logger.V(1).Info(fmt.Sprintf("Error (%s) - Logged for Connection: %s", Message, Address))
+
+}
+
+func PeerLogReceiveFail(Address string, Block_Type string, Block_ID string, PeerID uint64, Message string) {
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	Address = ParseIPNoError(Address)
+	// Create stats object if not already exists
+	// Create stats object if not already exists
+	_, stat_exists := Pstat[Address]
+	if !stat_exists {
+		var peer_stats PeerStats
+		peer_stats.Peer_ID = PeerID
+		peer_stats.Address = Address
+		Pstat[Address] = &peer_stats
+	}
+
+	is_collision := regexp.MustCompile("^collision ")
+	is_tip_issue := regexp.MustCompile("^tip could not be expanded")
+
+	if is_collision.Match([]byte(Message)) || is_tip_issue.Match([]byte(Message)) {
+		var CollisionError BlockCollisionError
+
+		CollisionError.Block_ID = Block_ID
+		CollisionError.Block_Type = Block_Type
+		CollisionError.Address = Address
+		CollisionError.When = time.Now()
+		CollisionError.Error_Message = Message
+		CollisionError.Incoming = true
+		Pstat[Address].Collision_Errors = append(Pstat[Address].Collision_Errors, &CollisionError)
+
+	} else {
+		// Log error
+		var ConnectionError BlockReceivingError
+
+		ConnectionError.Block_ID = Block_ID
+		ConnectionError.Block_Type = Block_Type
+		ConnectionError.Address = Address
+		ConnectionError.When = time.Now()
+		ConnectionError.Error_Message = Message
+		ConnectionError.From_Peer_ID = PeerID
+		Pstat[Address].Receiving_Errors = append(Pstat[Address].Receiving_Errors, &ConnectionError)
+	}
+	go Peer_SetFail(Address)
+	go logger.V(1).Info(fmt.Sprintf("Error (%s) - Logged for Connection: %s", Message, Address))
+
 }

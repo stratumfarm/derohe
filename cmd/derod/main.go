@@ -316,7 +316,6 @@ func main() {
 				}
 
 				hash_rate_string := hashratetostring(chain.Get_Network_HashRate())
-				globals.Miniblocks_In_Memory = chain.MiniBlocks.Count()
 
 				testnet_string := ""
 				if globals.IsMainnet() {
