@@ -1,0 +1,39 @@
+version: "2"
+volumes:
+  prometheus-data:
+    external: true
+  grafana-data:
+    external: true
+services:
+  json_exporter:
+    image: quay.io/prometheuscommunity/json-exporter
+    container_name: json_exporter
+    volumes:
+      - $PWD/config.yml:/config.yml:ro
+    ports:
+      - 7979:7979
+    network_mode: "host"
+  prometheus:
+    image: quay.io/prometheus/prometheus
+    container_name: prometheus
+    volumes:
+      - $PWD/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - 9090:9090
+    network_mode: "host"
+  grafana:
+    image: grafana/grafana:6.7.2
+    container_name: grafana
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning
+      - ./dashboards:/etc/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    expose:
+      - 3000
+    network_mode: host 

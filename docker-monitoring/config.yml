@@ -1,0 +1,55 @@
+headers:
+  Content-Type: "application/json"
+
+body:
+  content: |
+    {"jsonrpc":"2.0","id":"0","method":"get_info"}
+metrics:
+  - name: derod
+    type: object
+    help: General info from the derod node
+    path: '{.result}'
+    labels:
+      version: '{.version}'
+    values:
+      volume: '{.volume}'
+      market_cap: '{.marketCap}'
+      alt_blocks_count: "{.alt_blocks_count}"
+      averageblocktime50: "{.averageblocktime50}"
+      blocks_count: "{.blocks_count}"
+      connected_miners: "{.connected_miners}"
+      difficulty: "{.difficulty}"
+      dynamic_fee_per_kb: "{.dynamic_fee_per_kb}"
+      grey_peerlist_size: "{.grey_peerlist_size}"
+      hashrate_1d: "{.hashrate_1d}"
+      hashrate_1hr: "{.hashrate_1hr}"
+      hashrate_7d: "{.hashrate_7d}"
+      height: "{.height}"
+      our_height: "{.our_height}"
+      best_height: "{.best_height}"
+      best_topo_height: "{.best_topo_height}"
+      height_delta: "{.height_delta}"
+      incoming_connections_count: "{.incoming_connections_count}"
+      median_block_size: "{.median_block_size}"
+      miniblocks_accepted_count: "{.miniblocks_accepted_count}"
+      miniblocks_in_memory: "{.miniblocks_in_memory}"
+      miniblocks_rejected_count: "{.miniblocks_rejected_count}"
+      mining_velocity: "{.mining_velocity}"
+      network: "{.network}"
+      outgoing_connections_count: "{.outgoing_connections_count}"
+      stableheight: "{.stableheight}"
+      status: "{.status}"
+      target: "{.target}"
+      target_height: "{.target_height}"
+      testnet: "{.testnet}"
+      top_block_hash: "{.top_block_hash}"
+      topoheight: "{.topoheight}"
+      total_supply: "{.total_supply}"
+      treehash: "{.treehash}"
+      tx_count: "{.tx_count}"
+      tx_pool_size: "{.tx_pool_size}"
+      reg_pool_size: "{.reg_pool_size}"
+      uptime: "{.uptime}"
+      peer_count: "{.peer_count}"
+      peer_whitelist: "{.peer_whitelist}"
+      peer_latency: "{.peer_latency}"

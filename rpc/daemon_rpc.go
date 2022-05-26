@@ -281,6 +281,10 @@ type (
 		Height                     int64   `json:"height"`
 		StableHeight               int64   `json:"stableheight"`
 		TopoHeight                 int64   `json:"topoheight"`
+		OurHeight                  int64   `json:"our_height"`
+		BestHeight                 int64   `json:"best_height"`
+		BestTopoHeight             int64   `json:"best_topo_height"`
+		HeightDelta                int64   `json:"height_delta"`
 		Merkle_Balance_TreeHash    string  `json:"treehash"`
 		AverageBlockTime50         float32 `json:"averageblocktime50"`
 		Incoming_connections_count uint64  `json:"incoming_connections_count"`
@@ -292,10 +296,13 @@ type (
 		Top_block_hash             string  `json:"top_block_hash"`
 		Tx_count                   uint64  `json:"tx_count"`
 		Tx_pool_size               uint64  `json:"tx_pool_size"`
+		Reg_pool_size              uint64  `json:"reg_pool_size"`
 		Dynamic_fee_per_kb         uint64  `json:"dynamic_fee_per_kb"`
 		Total_Supply               uint64  `json:"total_supply"`
 		Median_Block_Size          uint64  `json:"median_block_size"`
-		White_peerlist_size        uint64  `json:"white_peerlist_size"`
+		PeerCount                  uint64  `json:"peer_count"`
+		PeerWhitelist              uint64  `json:"peer_whitelist"`
+		PeerLatency                int64   `json:"peer_latency"`
 		Version                    string  `json:"version"`
 
 		Miners               int `json:"connected_miners"`
