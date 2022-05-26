@@ -106,9 +106,8 @@ func GetInfo(ctx context.Context) (result rpc.GetInfo_Result, err error) {
 	result.CountMinisRejected = CountMinisRejected
 	result.CountMinisAccepted = CountMinisAccepted
 	result.CountBlocks = CountBlocks
-
-	result.Mining_Velocity = float64(float64(CountMinisAccepted+CountBlocks)/time.Now().Sub(globals.Uptime).Seconds()) * 3600
-	result.Uptime = uint64(time.Now().Sub(globals.Uptime).Seconds())
+	result.Mining_Velocity = float64(float64((CountMinisAccepted+CountBlocks)-CountMinisRejected)/time.Now().Sub(globals.StartTime).Seconds()) * 3600
+	result.Uptime = uint64(time.Now().Sub(globals.StartTime).Seconds())
 
 	result.HashrateEstimatePercent_1hr = uint64((float64(chain.Get_Network_HashRate()) * HashrateEstimatePercent_1hr()) / 100)
 	result.HashrateEstimatePercent_1day = uint64((float64(chain.Get_Network_HashRate()) * HashrateEstimatePercent_1day()) / 100)

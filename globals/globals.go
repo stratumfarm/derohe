@@ -60,7 +60,6 @@ var ClockOffsetNTP time.Duration // clockoffset in reference to ntp servers
 var ClockOffsetP2P time.Duration // clockoffset in reference to p2p averging
 var TimeIsInSync bool            // whether time is in sync, if yes we do not use any clock offset but still we keep calculating them
 var TimeIsInSyncNTP bool
-var Uptime = time.Now()
 var NetworkTurtle bool = true
 var ErrorLogExpirySeconds int64 = 600
 

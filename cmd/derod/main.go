@@ -876,8 +876,8 @@ restart_loop:
 
 			hostname, _ := os.Hostname()
 			fmt.Printf("STATUS MENU for DERO HE Node - Hostname: %s\n\n", hostname)
-			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.Uptime).Round(time.Second).String())
-			fmt.Printf("Uptime Since: %s\n\n", globals.Uptime.Format(time.RFC1123))
+			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String())
+			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
 
 			fmt.Printf("Network %s Height %d  NW Hashrate %0.03f MH/sec  Peers %d inc, %d out  MEMPOOL size %d REGPOOL %d  Total Supply %s DERO \n", globals.Config.Name, chain.Get_Height(), float64(chain.Get_Network_HashRate())/1000000.0, inc, out, mempool_tx_count, regpool_tx_count, globals.FormatMoney(supply))
 			fmt.Printf("Block Pop Count: %d\n", globals.BlockPopCount)
@@ -906,8 +906,8 @@ restart_loop:
 			fmt.Print("\nMining Stats:\n")
 			fmt.Printf("\tBlock Minted: %d (MB+IB)\n", blocksMinted)
 			if blocksMinted > 0 {
-				fmt.Printf("\tMinting Velocity: %.4f MB/h\t%.4f MB/d (since uptime)\n", float64(float64(blocksMinted)/time.Now().Sub(globals.Uptime).Seconds())*3600,
-					float64(float64(blocksMinted)/time.Now().Sub(globals.Uptime).Seconds())*3600*24)
+				fmt.Printf("\tMinting Velocity: %.4f MB/h\t%.4f MB/d (since uptime)\n", float64(float64(blocksMinted)/time.Now().Sub(globals.StartTime).Seconds())*3600,
+					float64(float64(blocksMinted)/time.Now().Sub(globals.StartTime).Seconds())*3600*24)
 			} else {
 				fmt.Print("\tMinting Velocity: 0.0000 MB/h\t0.0000MB/d (since uptime)\n")
 			}
@@ -969,8 +969,8 @@ restart_loop:
 
 			hostname, _ := os.Hostname()
 
-			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.Uptime).Round(time.Second).String())
-			fmt.Printf("Uptime Since: %s\n\n", globals.Uptime.Format(time.RFC1123))
+			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String())
+			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
 
 		case command == "peer_info":
 

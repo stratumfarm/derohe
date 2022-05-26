@@ -347,8 +347,8 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	io.WriteString(w, "\n\n*** Captain, our diagnostic report ****\n\n")
 
 	hostname, _ := os.Hostname()
-	io.WriteString(w, fmt.Sprintf("\tHostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.Uptime).Round(time.Second).String()))
-	io.WriteString(w, fmt.Sprintf("\tUptime Since: %s\n", globals.Uptime.Format(time.RFC1123)))
+	io.WriteString(w, fmt.Sprintf("\tHostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String()))
+	io.WriteString(w, fmt.Sprintf("\tUptime Since: %s\n", globals.StartTime.Format(time.RFC1123)))
 
 	io.WriteString(w, "\n\tPeer Summary:\n")
 	io.WriteString(w, fmt.Sprintf("\t\tOur Peer ID: %d\n", p2p.GetPeerID()))
