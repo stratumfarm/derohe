@@ -305,8 +305,9 @@ type (
 		PeerLatency                int64   `json:"peer_latency"`
 		Version                    string  `json:"version"`
 
-		Miners               int `json:"connected_miners"`
-		Miniblocks_In_Memory int `json:"miniblocks_in_memory"`
+		Miners               int   `json:"connected_miners"`
+		Miniblocks_In_Memory int   `json:"miniblocks_in_memory"`
+		RemotePopBlockCount  int64 `json:"remote_pop_block_count"`
 
 		CountBlocks        int64   `json:"blocks_count"`
 		CountMinisAccepted int64   `json:"miniblocks_accepted_count"`

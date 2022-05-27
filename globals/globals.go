@@ -67,6 +67,8 @@ var DiagnocticCheckRunning bool = false
 var NextDiagnocticCheck int64 = time.Now().Unix() + 15
 var BlockPopCount int64
 
+var SeedHeight int64 = 0
+
 // get current time with clock offset applied
 func Time() time.Time {
 	if TimeIsInSync {

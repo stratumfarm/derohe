@@ -30,6 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/deroproject/derohe/config"
 	"github.com/deroproject/derohe/globals"
 	"github.com/go-logr/logr"
 )
@@ -170,6 +171,36 @@ func Peer_Add(p *Peer) {
 		// logger.Infof("Peer is ourselves, discard")
 		return
 
+	}
+
+	// trusted only if enabled
+	if config.OnlyTrusted {
+
+		if !IsTrustedIP(p.Address) {
+			logger.Info(fmt.Sprintf("Trusted Only Mode: %s is not a trusted node - banned for 3600 seconds", p.Address))
+			go Ban_Address(ParseIPNoError(p.Address), 3600)
+		}
+
+		for _, conn := range UniqueConnections() {
+			_, found := trusted_map[ParseIPNoError(conn.Addr.String())]
+
+			seed_found := false
+			for _, seed := range config.Mainnet_seed_nodes {
+				if seed == conn.Addr.String() {
+					seed_found = true
+				}
+
+			}
+
+			if !found && !seed_found {
+				logger.V(1).Info(fmt.Sprintf("Disconnecting: %s", conn.Addr.String()))
+				conn.Client.Close()
+				conn.Conn.Close()
+				Connection_Delete(conn)
+			}
+		}
+
+		return
 	}
 
 	if _, ok := permban_map[ParseIPNoError(p.Address)]; ok {

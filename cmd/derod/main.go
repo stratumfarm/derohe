@@ -972,6 +972,19 @@ restart_loop:
 			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String())
 			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
 
+		case command == "ban_above_height":
+
+			if len(line_parts) == 2 {
+				height := chain.Get_Height() + 100
+				i, err := strconv.ParseInt(line_parts[1], 10, 64)
+				if err != nil {
+					io.WriteString(l.Stderr(), "usage: ban_above_height <height>\n")
+				} else {
+					height = int64(i)
+				}
+				p2p.Ban_Above_Height(height)
+			}
+
 		case command == "peer_info":
 
 			var error_peer string
@@ -1064,6 +1077,15 @@ restart_loop:
 					}
 				}
 
+				if line_parts[1] == "trusted" {
+					if config.OnlyTrusted {
+						config.OnlyTrusted = false
+					} else {
+						config.OnlyTrusted = true
+						p2p.Only_Trusted_Peers()
+					}
+				}
+
 				if line_parts[1] == "p2p_turbo" {
 					if config.P2PTurbo {
 						config.P2PTurbo = false
@@ -1107,6 +1129,12 @@ restart_loop:
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Peer Log Expiry (sec)", globals.ErrorLogExpirySeconds, "config peer_log_expiry <seconds>"))
 
+			trusted_only := "OFF"
+			if config.OnlyTrusted {
+				trusted_only = "ON"
+			}
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Connect to Trusted Only", trusted_only, "config trusted"))
+
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Auto run diagnostic sequence every (seconds)", config.DiagnosticCheckDelay, "config diagnostic_delay <seconds>"))
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\n\tDiagnostic Thresholds - use (run_diagnostic) to test\n"))
@@ -1114,6 +1142,32 @@ restart_loop:
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Peer Latency Threshold (Miliseconds)", time.Duration(config.PeerLatencyThreshold).Round(time.Millisecond).String(), "config peer_latency_threshold <seconds>"))
 
 			io.WriteString(l.Stdout(), "\n")
+
+		case command == "add_trusted":
+
+			var trusted string
+
+			if len(line_parts) == 2 {
+				trusted = line_parts[1]
+				p2p.Add_Trusted(trusted)
+			} else {
+				fmt.Printf("usage: add_trusted <ip address>\n")
+			}
+
+		case command == "remove_trusted":
+
+			var trusted string
+
+			if len(line_parts) == 2 {
+				trusted = line_parts[1]
+				p2p.Del_Trusted(trusted)
+			} else {
+				fmt.Printf("usage: remove_trusted <ip address>\n")
+			}
+
+		case command == "list_trusted":
+
+			p2p.Print_Trusted_Peers()
 
 		case command == "peer_errors":
 
@@ -1280,6 +1334,11 @@ restart_loop:
 				fmt.Printf("unbann %s successful", line_parts[1])
 			}
 
+		case command == "connect_to_hansen":
+			go p2p.ConnecToNode("213.171.208.37:18089") // dero-node.mysrv.cloud
+			go p2p.ConnecToNode("74.208.211.24:11011")  // dero-node-us.mysrv.cloud
+			go p2p.ConnecToNode("77.68.102.85:11011")   // dero-node.mysrv.cloud
+
 		case command == "bans":
 			p2p.BanList_Print() // print ban list
 
@@ -1436,6 +1495,12 @@ func usage(w io.Writer) {
 	io.WriteString(w, "\t\033[1mpeer_errors\033[0m\tPrint peer errors. To see details use - peer_errors <ip>\n")
 	io.WriteString(w, "\t\033[1mclear_all_peer_stats\033[0m\tClear all peers stats\n")
 	io.WriteString(w, "\t\033[1mclear_peer_stats\033[0m\tClear peer stats. To see details use - clear_peer_stats <ip>\n")
+	io.WriteString(w, "\t\033[1mban_above_height\033[0m\tBan Peers fro 3600 seconds which has height above X - ban_above_height <height>\n")
+
+	io.WriteString(w, "\t\033[1madd_trusted\033[0m\tTrusted Peer - add_trusted <ip/tag>\n")
+	io.WriteString(w, "\t\033[1mremove_trusted\033[0m\tTrusted Peer - remove_trusted <ip/tag>\n")
+	io.WriteString(w, "\t\033[1mlist_trusted\033[0m\tShow Trusted Peer List\n")
+	io.WriteString(w, "\t\033[1mconnect_to_hansen\033[0m\tConnect to Hansen nodes\n")
 
 }
 
@@ -1473,6 +1538,12 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("run_diagnostics"),
 	readline.PcItem("permban"),
 	readline.PcItem("config"),
+	readline.PcItem("ban_old"),
+	readline.PcItem("ban_above_height"),
+	readline.PcItem("connect_to_hansen"),
+	readline.PcItem("add_trusted"),
+	readline.PcItem("remove_trusted"),
+	readline.PcItem("list_trusted"),
 )
 
 func filterInput(r rune) (rune, bool) {

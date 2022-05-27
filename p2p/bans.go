@@ -386,3 +386,17 @@ func Ban_Count() (Count uint64) {
 	defer ban_mutex.Unlock()
 	return uint64(len(ban_map))
 }
+
+func Ban_Above_Height(height int64) {
+
+	for _, c := range UniqueConnections() {
+
+		if c.Height > int64(height) {
+			logger.Info(fmt.Sprintf("Banning Peer: %s - Height: %d", c.Addr.String(), c.Height))
+			go Ban_Address(ParseIPNoError(c.Addr.String()), 3600)
+
+		}
+
+	}
+
+}

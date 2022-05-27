@@ -103,6 +103,7 @@ func GetInfo(ctx context.Context) (result rpc.GetInfo_Result, err error) {
 	result.PeerLatency = globals.GetOffsetP2P().Round(time.Millisecond).Milliseconds()
 	result.Miners = CountMiners()
 	result.Miniblocks_In_Memory = chain.MiniBlocks.Count()
+	result.RemotePopBlockCount = globals.BlockPopCount
 	result.CountMinisRejected = CountMinisRejected
 	result.CountMinisAccepted = CountMinisAccepted
 	result.CountBlocks = CountBlocks

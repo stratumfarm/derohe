@@ -142,7 +142,8 @@ func P2P_Init(params map[string]interface{}) error {
 	chain = params["chain"].(*blockchain.Blockchain)
 	load_ban_list() // load ban list
 	load_permban_list()
-	load_peer_list() // load old list if availble
+	load_peer_list()  // load old list if availble
+	load_trust_list() // load trusted peers from file
 
 	// if user provided a sync node, connect with it
 	if _, ok := globals.Arguments["--sync-node"]; ok { // check if parameter is supported

@@ -33,6 +33,9 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
  * Threshold to highlight Peers with Block Transmission Success Rate below x
  * Threshold to highlight Peers latency below x threshold
  * Clear peers stats, individual or all
+ * Trusted Peers List / Only Connect To Trusted Peers
+ * Quick Connect to Hansen Nodes 
+ * ban_above_height - ban all peers over a specific height
 
 ### Screen Shots
 
