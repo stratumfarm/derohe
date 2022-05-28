@@ -243,7 +243,7 @@ func PrintBlockErrors() {
 	peer_count := 0
 	for _, stat := range Pstat {
 
-		var success_rate float64
+		var success_rate float64 = 100
 		_, ps := BlockInsertCount[stat.Address]
 		if ps {
 			total := (BlockInsertCount[stat.Address].Blocks_Accepted + BlockInsertCount[stat.Address].Blocks_Rejected)
@@ -593,12 +593,11 @@ func PeerList_Print(limit int64) {
 				version = version[:20]
 			}
 
-			var success_rate float64 = 0
+			var success_rate float64 = 100
 			_, bi := BlockInsertCount[Address]
 			if bi {
 				total := (BlockInsertCount[Address].Blocks_Accepted + BlockInsertCount[Address].Blocks_Rejected)
 				success_rate = float64(float64(float64(BlockInsertCount[Address].Blocks_Accepted) / float64(total) * 100))
-
 			}
 
 			// fmt.Printf("%-20s %-22d %-23s %-8d %-22s %-12s %-10s %-8s %-8s %-8d %-8d %-14s\n", ParseIPNoError(peer.Address), c.Peer_ID, version, c.Height, is_connected,

@@ -981,8 +981,17 @@ restart_loop:
 					io.WriteString(l.Stderr(), "usage: ban_above_height <height>\n")
 				} else {
 					height = int64(i)
+					p2p.Ban_Above_Height(height)
 				}
-				p2p.Ban_Above_Height(height)
+			}
+
+		case command == "connecto_to_peer":
+
+			if len(line_parts) == 2 {
+				address := line_parts[1]
+				p2p.ConnecToNode(address)
+			} else {
+				fmt.Printf("usage: connecto_to_peer <ip address:port>\n")
 			}
 
 		case command == "peer_info":
@@ -1501,6 +1510,7 @@ func usage(w io.Writer) {
 	io.WriteString(w, "\t\033[1mremove_trusted\033[0m\tTrusted Peer - remove_trusted <ip/tag>\n")
 	io.WriteString(w, "\t\033[1mlist_trusted\033[0m\tShow Trusted Peer List\n")
 	io.WriteString(w, "\t\033[1mconnect_to_hansen\033[0m\tConnect to Hansen nodes\n")
+	io.WriteString(w, "\t\033[1mconnect_to_peer\033[0m\tConnect to any peer using - connect_to_peer <ip:p2p-port>\n")
 
 }
 
@@ -1538,12 +1548,12 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("run_diagnostics"),
 	readline.PcItem("permban"),
 	readline.PcItem("config"),
-	readline.PcItem("ban_old"),
 	readline.PcItem("ban_above_height"),
 	readline.PcItem("connect_to_hansen"),
 	readline.PcItem("add_trusted"),
 	readline.PcItem("remove_trusted"),
 	readline.PcItem("list_trusted"),
+	readline.PcItem("connect_to_peer"),
 )
 
 func filterInput(r rune) (rune, bool) {

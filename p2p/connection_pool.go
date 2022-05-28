@@ -279,7 +279,7 @@ func Connection_Print() {
 		}
 
 		PeerAddress := ParseIPNoError(clist[i].Addr.String())
-		var success_rate float64
+		var success_rate float64 = 100
 		_, ps := BlockInsertCount[PeerAddress]
 		if ps {
 			total := (BlockInsertCount[PeerAddress].Blocks_Accepted + BlockInsertCount[PeerAddress].Blocks_Rejected)

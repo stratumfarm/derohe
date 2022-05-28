@@ -117,12 +117,14 @@ func Del_Trusted(Address string) {
 	trust_mutex.Lock()
 	defer trust_mutex.Unlock()
 
-	for _, c := range UniqueConnections() {
-		if ParseIPNoError(c.Addr.String()) == ParseIPNoError(Address) {
-			delete(trusted_map, ParseIPNoError(c.Addr.String()))
-			logger.Info(fmt.Sprintf("Address: %s (%s) - Removed from Trusted List", c.Addr.String(), c.Tag))
+	for ip, _ := range trusted_map {
+		if ip == ParseIPNoError(Address) {
+			delete(trusted_map, ParseIPNoError(ip))
+			logger.Info(fmt.Sprintf("Address: %s - Removed from Trusted List", ip))
 		}
+	}
 
+	for _, c := range UniqueConnections() {
 		tag_match := regexp.MustCompile(Address)
 		if tag_match.Match([]byte(c.Tag)) {
 			delete(trusted_map, ParseIPNoError(c.Addr.String()))

@@ -2,7 +2,9 @@
 
 If you don't alredy know DERO - Check out [Dero git repo](https://github.com/deroproject/derohe)
 
-* This is not an OFFICIAL release of DERO, use with causion, if all your minis get lost or your computer blows up, it's no my fault, you installed this.
+* This is a Weaponized version of Dero Daemon, this is NOT the official release of DERO.
+* Please use with causion, as with all weapons you may or may not hurt your self using this.
+* If all your minis get lost or your computer blows up, it's no my fault, you installed this.
 
 ### Changes from official release includes
 
@@ -36,6 +38,7 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
  * Trusted Peers List / Only Connect To Trusted Peers
  * Quick Connect to Hansen Nodes 
  * ban_above_height - ban all peers over a specific height
+ * connect_to_peer (Initialise new connection to peer <ip:port>)
 
 ### Screen Shots
 

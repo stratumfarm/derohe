@@ -208,9 +208,6 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 		peer_count++
 		Address := p2p.ParseIPNoError(peer.Addr.String())
 
-		// ip_str := fmt.Sprintf("Scanning: %s", Address)
-		// latency_str := fmt.Sprintf("Latency: %s", time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond).String())
-
 		if peer.Incoming {
 			incoming_count++
 		} else {
@@ -218,8 +215,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 		}
 
 		if time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond) > config.PeerLatencyThreshold {
-			// io.WriteString(w, fmt.Sprintf("\t\tERROR: Latency Bad: %s\n", time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond)))
-			critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Latency Bad: %s", Address, time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond)))
+			critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Latency: %s", Address, time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond)))
 		}
 		//check if latency is good or bad - and repotr
 
@@ -233,7 +229,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 			bad_height_count++
 		}
 
-		var success_rate float64
+		var success_rate float64 = 100
 		_, ps := p2p.BlockInsertCount[Address]
 		if ps {
 
@@ -247,9 +243,6 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 			}
 		}
 
-		// block_success_rate := fmt.Sprintf("BTS: %.2f%%", success_rate)
-		// io.WriteString(w, fmt.Sprintf("\t%-34s %-22s %-22s %-32s\n", ip_str, latency_str, block_success_rate, peer.DaemonVersion))
-
 		if len(peer.Tag) >= 1 {
 			friendly_peers = append(friendly_peers, peer)
 		}
@@ -257,11 +250,8 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 		// report if daemon version is different than ours
 		if config.Version.String() != peer.DaemonVersion {
-			// io.WriteString(w, fmt.Sprintf("\t\tWARN: DERO HE Version: %s\n", peer.DaemonVersion))
-			// peer_errors = append(peer_errors, fmt.Sprintf("Peer: %s - Different DERO HE Version: %s", Address, peer.DaemonVersion))
 			bad_daemon_count++
 		} else {
-			// io.WriteString(w, fmt.Sprintf("\t\tOK: DERO HE Version: %s\n", peer.DaemonVersion))
 			good_daemon_count++
 		}
 
@@ -372,7 +362,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 			io.WriteString(w, fmt.Sprintf("\n\tDespite some (%d) peering issues...\n", len(peer_errors)))
 			time.Sleep(500 * time.Millisecond)
 			if len(critical_errors) >= 1 {
-				io.WriteString(w, fmt.Sprintf("\n\tSome (%d) minor (CRITIAL) issues...\n", len(critical_errors)))
+				io.WriteString(w, fmt.Sprintf("\tSome (%d) other issues...\n", len(critical_errors)))
 				time.Sleep(500 * time.Millisecond)
 			}
 		}

@@ -477,6 +477,11 @@ func maintain_connection_to_peers() {
 		logger.Info("Max peers", "max-peers", Max_Peers)
 	}
 
+	// check max and min peers are alligned
+	if Min_Peers > Max_Peers {
+		Max_Peers = Min_Peers
+	}
+
 	delay := time.NewTicker(200 * time.Millisecond)
 
 	for {
