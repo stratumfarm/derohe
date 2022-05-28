@@ -46,16 +46,15 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
 
 ![More Options](https://dero-node.mysrv.cloud/images/more-options.png)
 ![Running Config](https://dero-node.mysrv.cloud/images/running-config.png)
-![Auto Ban](https://dero-node.mysrv.cloud/images/autoban.png)
 
 #### Diagnostics
 
 ![Diagnostics](https://dero-node.mysrv.cloud/images/diagnostics.png)
-
 ![Diagnostic Report](https://dero-node.mysrv.cloud/images/diagnostic_report.png)
 
 #### Peering Stuff
 
+![Trusted Peers](https://dero-node.mysrv.cloud/images/trusted_list.png)
 ![Peer Errors](https://dero-node.mysrv.cloud/images/peer_errors.png)
 ![Peer Info](https://dero-node.mysrv.cloud/images/peer_info.png)
 ![Peer List](https://dero-node.mysrv.cloud/images/peer_list.png)
