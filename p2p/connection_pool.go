@@ -268,6 +268,7 @@ func Connection_Print() {
 	sort.Slice(clist, func(i, j int) bool { return clist[i].Addr.String() < clist[j].Addr.String() })
 
 	our_topo_height := chain.Load_TOPO_HEIGHT()
+	var sum_latency int64
 
 	for i := range clist {
 
@@ -287,6 +288,7 @@ func Connection_Print() {
 			state = "ACTIVE"
 		}
 
+		atomic.AddInt64(&sum_latency, atomic.LoadInt64(&clist[i].Latency))
 		version := clist[i].DaemonVersion
 
 		if len(version) > 20 {
@@ -314,6 +316,8 @@ func Connection_Print() {
 		fmt.Print(color_normal)
 	}
 
+	avg_latency := sum_latency / int64(len(clist))
+	fmt.Printf("Average Latency: %7s\n", time.Duration(avg_latency).Round(time.Millisecond).String())
 }
 
 // for continuos update on command line, get the maximum height of all peers

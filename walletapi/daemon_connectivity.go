@@ -25,18 +25,19 @@ package walletapi
  *
  * *
  */
-//import "io"
-//import "os"
-//import "fmt"
 
-//import "net/url"
+import "net"
+import "time"
+
+import "context"
 import "net/http"
 
 import "github.com/deroproject/derohe/glue/rwc"
 
 import "github.com/creachadair/jrpc2"
 import "github.com/creachadair/jrpc2/channel"
-import "github.com/gorilla/websocket"
+import "nhooyr.io/websocket"
+import "strings"
 
 // there should be no global variables, so multiple wallets can run at the same time with different assset
 
@@ -58,7 +59,25 @@ func Connect(endpoint string) (err error) {
 
 	logger.V(1).Info("Daemon endpoint ", "address", Daemon_Endpoint_Active)
 
-	rpc_client.WS, _, err = websocket.DefaultDialer.Dial("ws://"+Daemon_Endpoint_Active+"/ws", nil)
+	// TODO enable socks support here
+	var netTransport = &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second, // 5 second timeout
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+
+	netClient = &http.Client{
+		Timeout:   time.Second * 10,
+		Transport: netTransport,
+	}
+
+	if strings.HasPrefix(Daemon_Endpoint_Active, "https") {
+		ld := strings.TrimPrefix(strings.ToLower(Daemon_Endpoint_Active), "https://")
+		rpc_client.WS, _, err = websocket.Dial(context.Background(), "wss://"+ld+"/ws", nil)
+	} else {
+		rpc_client.WS, _, err = websocket.Dial(context.Background(), "ws://"+Daemon_Endpoint_Active+"/ws", nil)
+	}
 
 	// notify user of any state change
 	// if daemon connection breaks or comes live again
@@ -68,7 +87,6 @@ func Connect(endpoint string) (err error) {
 			Connected = true
 		}
 	} else {
-
 		if Connected {
 			logger.V(1).Error(err, "Connection to RPC server Failed", "endpoint", "ws://"+Daemon_Endpoint_Active+"/ws")
 		}
@@ -76,7 +94,7 @@ func Connect(endpoint string) (err error) {
 		return
 	}
 
-	input_output := rwc.New(rpc_client.WS)
+	input_output := rwc.NewNhooyr(rpc_client.WS)
 	rpc_client.RPC = jrpc2.NewClient(channel.RawJSON(input_output, input_output), &jrpc2.ClientOptions{OnNotify: Notify_broadcaster})
 
 	return test_connectivity()
