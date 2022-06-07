@@ -38,12 +38,17 @@
             <td>size [kB]</td>
             <td>version</td>
         </tr>
-            <tr>
-                <td>{{index .block.Mtx.OutAddress 0}}</a>
+           <tr>
+                <td>{{index .block.Mtx.OutAddress 0}}</td>
                 <td>{{.block.Mtx.Amount}}</td>
                 <td>{{.block.Mtx.Size}}</td>
                 <td>{{.block.Mtx.Version}}</td>
             </tr>
+            {{range .block.Mini_Miners}}
+                <tr>
+                    <td>{{.}}</td>
+                </tr>
+            {{end}}
 
     </table>
 

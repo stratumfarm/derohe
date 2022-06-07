@@ -78,7 +78,7 @@ func main() {
 
 	logger.V(1).Info("", "Arguments", globals.Arguments)
 
-	endpoint := "127.0.0.1:8080"
+	endpoint := "127.0.0.1:10102"
 	if globals.Arguments["--daemon-address"] != nil {
 		endpoint = globals.Arguments["--daemon-address"].(string)
 	}

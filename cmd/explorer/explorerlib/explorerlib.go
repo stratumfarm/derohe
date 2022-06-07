@@ -309,6 +309,7 @@ type block_info struct {
 	Orphan_Status bool
 	SyncBlock     bool // whether the block is sync block
 	Tx_Count      int
+	Mini_Miners   []string
 }
 
 var all_templates *template.Template
@@ -357,6 +358,9 @@ func load_block_from_rpc(info *block_info, block_hash string, recursive bool) (e
 	info.Major_Version = bresult.Block_Header.Major_Version
 	info.Minor_Version = bresult.Block_Header.Minor_Version
 	info.Reward = fmt.Sprintf("%.05f", float32(bresult.Block_Header.Reward)/100000.0)
+	if len(bresult.Block_Header.Miners) >= 10 {
+	    info.Mini_Miners = bresult.Block_Header.Miners[:len(bresult.Block_Header.Miners)-1]
+	}
 
 	block_bin, _ = hex.DecodeString(bresult.Blob)
 
