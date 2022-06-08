@@ -182,6 +182,13 @@ type (
 )
 
 type (
+	GetNames_Params struct{} // no params
+	GetNames_Result struct {
+		Names []string `json:"names"`
+	}
+)
+
+type (
 	GetHeight_Params struct{} // no params
 	GetHeight_Result struct {
 		Height uint64 `json:"height"`

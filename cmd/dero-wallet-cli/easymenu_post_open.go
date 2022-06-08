@@ -65,6 +65,8 @@ func display_easymenu_post_open_command(l *readline.Instance) {
 		io.WriteString(w, "\t\033[1m13\033[0m\tShow transaction history\n")
 		io.WriteString(w, "\t\033[1m14\033[0m\tRescan transaction history\n")
 		io.WriteString(w, "\t\033[1m15\033[0m\tExport all transaction history in json format\n")
+		io.WriteString(w, "\n")
+		io.WriteString(w, "\t\033[1m20\033[0m\tDisplay account Name(s)\n")
 	}
 
 	io.WriteString(w, "\n\t\033[1m9\033[0m\tExit menu and start prompt\n")
@@ -494,6 +496,22 @@ func handle_easymenu_post_open_command(l *readline.Instance, line string) (proce
 				logger.Info("successfully exported history", "file", filename)
 			}
 		}
+
+	case "20":
+		addr := wallet.GetAddress().String()
+		names, err := wallet.AddressToName(addr)
+
+		fmt.Fprintf(l.Stderr(), color_white+"Wallet address : "+color_green+"%s"+color_white+"\n", addr)
+		if err == nil {
+			fmt.Fprint(l.Stderr(), "Wallet name(s) :\n")
+			for _, name := range names {
+				fmt.Fprintf(l.Stderr(), color_green+"%s"+color_white+"\n", name)
+			}
+		} else {
+			fmt.Fprintf(l.Stderr(), color_yellow+"Error: %s"+color_white+"\n", err)
+		}
+
+		PressAnyKey(l, wallet)
 
 	default:
 		processed = false // just loop
