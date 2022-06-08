@@ -3,8 +3,6 @@ package rpc
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"runtime/debug"
 	"sort"
@@ -33,7 +31,7 @@ func AddressToName(ctx context.Context, p rpc.AddressToName_Params) (result rpc.
 	var getsc_result rpc.GetSC_Result
 	getsc_result.VariableStringKeys = map[string]interface{}{}
 	//getsc_result.VariableUint64Keys = map[uint64]interface{}{}
-	getsc_result.Balances = map[string]uint64{}
+	//getsc_result.Balances = map[string]uint64{}
 
 	scid := crypto.HashHexToHash("0000000000000000000000000000000000000000000000000000000000000001")
 
@@ -52,12 +50,6 @@ func AddressToName(ctx context.Context, p rpc.AddressToName_Params) (result rpc.
 			var sc_data_tree *graviton.Tree
 			sc_data_tree, err2 = ss.GetTree(string(scid[:]))
 			if err2 == nil {
-				var zerohash crypto.Hash
-				if balance_bytes, err2 := sc_data_tree.Get(zerohash[:]); err2 == nil {
-					if len(balance_bytes) == 8 {
-						getsc_result.Balance = binary.BigEndian.Uint64(balance_bytes[:])
-					}
-				}
 				// user requested all variables
 				cursor := sc_data_tree.Cursor()
 				var k, v []byte
@@ -70,19 +62,15 @@ func AddressToName(ctx context.Context, p rpc.AddressToName_Params) (result rpc.
 					_ = v
 
 					//fmt.Printf("key '%x'  value '%x'\n", k, v)
-					if len(k) == 32 && len(v) == 8 { // it's SC balance
-						getsc_result.Balances[fmt.Sprintf("%x", k)] = binary.BigEndian.Uint64(v)
-					} else if k[len(k)-1] >= 0x3 && k[len(k)-1] < 0x80 && nil == vark.UnmarshalBinary(k) && nil == varv.UnmarshalBinary(v) {
+					if k[len(k)-1] >= 0x3 && k[len(k)-1] < 0x80 && nil == vark.UnmarshalBinary(k) && nil == varv.UnmarshalBinary(v) {
 						switch vark.Type {
+						case dvm.String:
+							if varv.Type == dvm.String {
+								getsc_result.VariableStringKeys[vark.ValueString] = []byte(varv.ValueString)
+							}
+
 						case dvm.Uint64:
 
-						case dvm.String:
-							if varv.Type == dvm.Uint64 {
-								//err = fmt.Errorf("UNKNOWN Data type")
-								//return
-							} else {
-								getsc_result.VariableStringKeys[vark.ValueString] = fmt.Sprintf("%x", []byte(varv.ValueString))
-							}
 						default:
 							err = fmt.Errorf("UNKNOWN Data type")
 							return
@@ -93,15 +81,18 @@ func AddressToName(ctx context.Context, p rpc.AddressToName_Params) (result rpc.
 		}
 	}
 
+	//fmt.Println(len(getsc_result.VariableStringKeys))
+
+	req_addr_raw := req_addr.Compressed()
+
 	for k, v := range getsc_result.VariableStringKeys {
-		b, _ := hex.DecodeString(v.(string))
-		addr, err3 := rpc.NewAddressFromCompressedKeys(b)
+		_, err3 := rpc.NewAddressFromCompressedKeys(v.([]byte))
 		if err3 != nil {
-			//fmt.Printf("%s, %s\n", k, v)
+			//fmt.Printf("%s, %x\n", k, v)
 			continue
 		}
-		if bytes.Equal(req_addr.Compressed(), addr.Compressed()) {
-			//fmt.Printf("%s, %s\n", k, v)
+		if bytes.Equal(req_addr_raw, v.([]byte)) {
+			//fmt.Printf("%s, %x\n", k, v)
 			result.Names = append(result.Names, k)
 		}
 	}
