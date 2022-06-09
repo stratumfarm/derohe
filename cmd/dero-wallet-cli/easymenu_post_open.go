@@ -500,12 +500,24 @@ func handle_easymenu_post_open_command(l *readline.Instance, line string) (proce
 	case "20":
 		addr := wallet.GetAddress().String()
 		names, err := wallet.AddressToName(addr)
+		paging := 20
 
 		fmt.Fprintf(l.Stderr(), color_white+"Wallet address : "+color_green+"%s"+color_white+"\n", addr)
 		if err == nil {
-			fmt.Fprint(l.Stderr(), "Wallet name(s) :\n")
-			for _, name := range names {
-				fmt.Fprintf(l.Stderr(), color_green+"%s"+color_white+"\n", name)
+			if len(names) == 1 {
+				fmt.Fprint(l.Stderr(), "Wallet name : ")
+			} else {
+				fmt.Fprintf(l.Stderr(), "Wallet names, total "+color_cyan+"%d"+color_white+" :\n", len(names))
+			}
+
+			for i := 0; i < len(names); i++ {
+				fmt.Fprintf(l.Stderr(), color_green+"%s"+color_white+"\n", names[i])
+
+				if (i+1) < len(names) && (i+1)%paging == 0 { // ask user whether he want to see more till he quits
+					if !ConfirmYesNoDefaultYes(l, "Want to see more name (Y/n)?") {
+						break // break loop
+					}
+				}
 			}
 		} else {
 			fmt.Fprintf(l.Stderr(), color_yellow+"Error: %s"+color_white+"\n", err)
