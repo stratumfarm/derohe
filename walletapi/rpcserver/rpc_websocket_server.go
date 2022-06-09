@@ -319,6 +319,8 @@ var wallet_handler = handler.Map{
 	"Transfer":                 handler.New(Transfer),
 	"transfer_split":           handler.New(Transfer),
 	"scinvoke":                 handler.New(ScInvoke),
+	"getnames":                 handler.New(GetNames),
+	"GetNames":                 handler.New(GetNames),
 }
 
 var servicemux = handler.ServiceMap{

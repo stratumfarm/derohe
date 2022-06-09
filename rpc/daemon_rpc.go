@@ -99,6 +99,18 @@ type (
 	}
 )
 
+type (
+	AddressToName_Params struct {
+		Address    string `json:"address"`              // Address for look up
+		TopoHeight int64  `json:"topoheight,omitempty"` // lookup in reference to this topo height
+	} // no params
+	AddressToName_Result struct {
+		Address string   `json:"address"`
+		Names   []string `json:"names"`
+		Status  string   `json:"status"`
+	}
+)
+
 // get block template request response
 type (
 	GetBlockTemplate_Params struct {

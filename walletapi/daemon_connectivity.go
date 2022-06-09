@@ -25,9 +25,6 @@ package walletapi
  *
  * *
  */
-//import "io"
-//import "os"
-//import "fmt"
 
 //import "net/url"
 import (
@@ -96,7 +93,6 @@ func Connect(endpoint string) (err error) {
 			Connected = true
 		}
 	} else {
-
 		if Connected {
 			logger.V(1).Error(err, "Connection to RPC server Failed", "endpoint", wsSchema+Daemon_Endpoint_Active+"/ws")
 		}

@@ -304,6 +304,30 @@ func (w *Wallet_Memory) NameToAddress(name string) (addr string, err error) {
 	}
 }
 
+func (w *Wallet_Memory) AddressToName(address string) (names []string, err error) {
+	if address == "" {
+		return names, fmt.Errorf("empty string is not a valid name")
+	}
+
+	if !IsDaemonOnline() {
+		err = fmt.Errorf("offline or not connected. cannot translate address to name")
+		return
+	}
+
+	var result rpc.AddressToName_Result
+	if err = rpc_client.Call("DERO.AddressToName", rpc.AddressToName_Params{Address: address, TopoHeight: -1}, &result); err != nil {
+		return
+	}
+
+	if result.Status == "OK" {
+		names = result.Names
+		return
+	} else {
+		err = fmt.Errorf("Err %s", result.Status)
+		return
+	}
+}
+
 // this is as simple as it gets
 // single threaded communication to relay TX to daemon
 // if this is successful, then daemon is in control
