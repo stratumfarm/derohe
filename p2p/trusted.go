@@ -221,7 +221,7 @@ func Only_Trusted_Peers() {
 
 		seed_found := false
 		for _, seed := range config.Mainnet_seed_nodes {
-			if seed == conn.Addr.String() {
+			if ParseIPNoError(seed) == ParseIPNoError(conn.Addr.String()) {
 				seed_found = true
 			}
 

@@ -288,6 +288,7 @@ func Ban_Address(address string, ban_seconds uint64) (err error) {
 
 	if IsTrustedIP(address) {
 		logger.Info(fmt.Sprintf("Address (%s) is trusted list or a seed node not banning", address))
+		return
 	}
 
 	//logger.Warnf("%s banned for %d secs", address, ban_seconds)

@@ -38,7 +38,8 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
  * Trusted Peers List / Only Connect To Trusted Peers
  * Quick Connect to Hansen Nodes 
  * ban_above_height - ban all peers over a specific height
- * connect_to_peer (Initialise new connection to peer <ip:port>)
+ * connect_to_peer <ip:port> (Initialise new connection to peer)
+ * Quick Connect to Seed Nodes 
 
 ### Screen Shots
 
@@ -61,7 +62,9 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
 
 ### Developers
 
- * Hansen33 -- Integrator Address: dero1qy07h9mk6xxf2k4x0ymdpezvksjy0talskhpvqmat3xk3d9wczg5jqqvwl0sn
+ * Hansen33 -- Address: dero1qy07h9mk6xxf2k4x0ymdpezvksjy0talskhpvqmat3xk3d9wczg5jqqvwl0sn
+ * adrodd -- Address: TBA
+ * mmarvel -- Address: dero1qydkj6dznyk5njmzr96hjcr5uj74anqqqv90mg39mtzm4d2dcpwsqqqk6zvve
 
 ### TODO
 

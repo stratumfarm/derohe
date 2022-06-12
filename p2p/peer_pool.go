@@ -176,22 +176,9 @@ func Peer_Add(p *Peer) {
 	// trusted only if enabled
 	if config.OnlyTrusted {
 
-		if !IsTrustedIP(p.Address) {
-			logger.V(1).Info(fmt.Sprintf("Trusted Only Mode: %s is not a trusted node - ignored", p.Address))
-		}
-
+		// First make sure we remove all untrusted connections
 		for _, conn := range UniqueConnections() {
-			_, found := trusted_map[ParseIPNoError(conn.Addr.String())]
-
-			seed_found := false
-			for _, seed := range config.Mainnet_seed_nodes {
-				if seed == conn.Addr.String() {
-					seed_found = true
-				}
-
-			}
-
-			if !found && !seed_found {
+			if !IsTrustedIP(conn.Addr.String()) {
 				logger.V(1).Info(fmt.Sprintf("Disconnecting: %s", conn.Addr.String()))
 				conn.Client.Close()
 				conn.Conn.Close()
@@ -199,7 +186,11 @@ func Peer_Add(p *Peer) {
 			}
 		}
 
-		return
+		// Check if new peer is trusted before adding it
+		if !IsTrustedIP(p.Address) {
+			logger.V(1).Info(fmt.Sprintf("Trusted Only Mode: %s is not a trusted node - ignored", p.Address))
+			return
+		}
 	}
 
 	if _, ok := permban_map[ParseIPNoError(p.Address)]; ok {
