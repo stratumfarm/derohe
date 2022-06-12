@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"time"
 
@@ -59,8 +60,14 @@ type user_session struct {
 	address_sum   [32]byte
 }
 
+type banned struct {
+	fail_count uint8
+	timestamp  time.Time
+}
+
 var client_list_mutex sync.Mutex
 var client_list = map[*websocket.Conn]*user_session{}
+var ban_list = make(map[string]banned)
 
 var miners_count int
 
@@ -213,6 +220,7 @@ func newUpgrader() *websocket.Upgrader {
 		}
 
 		sess := c.Session().(*user_session)
+		miner := ParseIPNoError(c.RemoteAddr().String())
 
 		client_list_mutex.Lock()
 		defer client_list_mutex.Unlock()
@@ -244,6 +252,14 @@ func newUpgrader() *websocket.Upgrader {
 				rate_lock.Lock()
 				defer rate_lock.Unlock()
 				mini_found_time = append(mini_found_time, time.Now().Unix())
+
+				// Reset fail count in case of valid PoW
+				for i, t := range ban_list {
+					if miner == i {
+						t.fail_count = 0
+						ban_list[miner] = t
+					}
+				}
 			} else {
 				sess.blocks++
 				atomic.AddInt64(&CountBlocks, 1)
@@ -253,6 +269,17 @@ func newUpgrader() *websocket.Upgrader {
 		if !sresult || err != nil {
 			sess.rejected++
 			atomic.AddInt64(&CountMinisRejected, 1)
+
+			// Increase fail count and ban miner in case of 3 invalid PoW's in a row
+			i := ban_list[miner]
+			i.fail_count++
+			if i.fail_count >= 3 {
+				i.timestamp = time.Now()
+				c.Close()
+				delete(client_list, c)
+				logger_getwork.Info("Banned miner", "Address", miner, "Info", "Banned")
+			}
+			ban_list[miner] = i
 		}
 
 	})
@@ -286,6 +313,21 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 		//panic(err)
 		return
 	}
+
+	// Check incoming connections if ban still exists
+	// Ban is active for 15 minutes
+	miner := ParseIPNoError(r.RemoteAddr)
+	for i, t := range ban_list {
+		if miner == i {
+			if time.Now().Sub(t.timestamp) < time.Minute*15 {
+				logger_getwork.V(1).Info("Banned miner", "Address", i, "Info", "Ban still active")
+				conn.Close()
+			} else {
+				delete(ban_list, i)
+			}
+		}
+	}
+
 	wsConn := conn.(*websocket.Conn)
 
 	session := user_session{address: *addr, address_sum: graviton.Sum(addr_raw)}
@@ -354,11 +396,11 @@ func Getwork_server() {
 
 	//globals.Cron.AddFunc("@every 2s", SendJob) // if daemon restart automaticaly send job
 	go func() { // try to be as optimized as possible to lower hash wastage
-
-		if config.GETWorkJobDispatchTime.Milliseconds() < 40 {
-			config.GETWorkJobDispatchTime = 500 * time.Millisecond
+		sleeptime, _ := time.ParseDuration(os.Getenv("JOB_SEND_TIME_DELAY")) // this will hopefully be never required to change
+		if sleeptime.Milliseconds() < 40 {
+			sleeptime = 500 * time.Millisecond
 		}
-		logger_getwork.Info("Job will be dispatched every", "time", config.GETWorkJobDispatchTime)
+		logger_getwork.Info("Job will be dispatched every", "time", sleeptime)
 		old_mini_count := 0
 		old_time := time.Now()
 		old_height := int64(0)
@@ -366,7 +408,7 @@ func Getwork_server() {
 			if miners_count > 0 {
 				current_mini_count := chain.MiniBlocks.Count()
 				current_height := chain.Get_Height()
-				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > config.GETWorkJobDispatchTime {
+				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > sleeptime {
 					old_mini_count = current_mini_count
 					old_height = current_height
 					SendJob()
@@ -448,4 +490,23 @@ func generate_random_tls_cert() tls.Certificate {
 		panic(err)
 	}
 	return tlsCert
+}
+
+func ParseIP(s string) (string, error) {
+	ip, _, err := net.SplitHostPort(s)
+	if err == nil {
+		return ip, nil
+	}
+
+	ip2 := net.ParseIP(s)
+	if ip2 == nil {
+		return "", fmt.Errorf("invalid IP")
+	}
+
+	return ip2.String(), nil
+}
+
+func ParseIPNoError(s string) string {
+	ip, _ := ParseIP(s)
+	return ip
 }
