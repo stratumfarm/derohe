@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"sort"
 	"time"
 
@@ -396,11 +395,10 @@ func Getwork_server() {
 
 	//globals.Cron.AddFunc("@every 2s", SendJob) // if daemon restart automaticaly send job
 	go func() { // try to be as optimized as possible to lower hash wastage
-		sleeptime, _ := time.ParseDuration(os.Getenv("JOB_SEND_TIME_DELAY")) // this will hopefully be never required to change
-		if sleeptime.Milliseconds() < 40 {
-			sleeptime = 500 * time.Millisecond
+		if config.GETWorkJobDispatchTime.Milliseconds() < 40 {
+			config.GETWorkJobDispatchTime = 500 * time.Millisecond
 		}
-		logger_getwork.Info("Job will be dispatched every", "time", sleeptime)
+		logger_getwork.Info("Job will be dispatched every", "time", config.GETWorkJobDispatchTime)
 		old_mini_count := 0
 		old_time := time.Now()
 		old_height := int64(0)
@@ -408,7 +406,7 @@ func Getwork_server() {
 			if miners_count > 0 {
 				current_mini_count := chain.MiniBlocks.Count()
 				current_height := chain.Get_Height()
-				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > sleeptime {
+				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > config.GETWorkJobDispatchTime {
 					old_mini_count = current_mini_count
 					old_height = current_height
 					SendJob()
