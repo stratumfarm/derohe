@@ -23,7 +23,7 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
  * Auto saving bans.json and peers.json
  * More Peers - Removed internal limitations
  * Whitelist incoming connections option
- * Turle Mode Indicator - If node is running optimal
+ * Turtle Mode Indicator - If node is running optimal
  * Uptime Stats
  * Some Mining Performance Stats
  * Running Config + System Tuning

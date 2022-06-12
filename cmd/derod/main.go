@@ -333,6 +333,10 @@ func main() {
 						turtle_string = " (\033[31mTurtle\033[32m)"
 					}
 
+					if config.OnlyTrusted {
+						turtle_string = " (\033[31mTrusted Mode\033[32m)"
+					}
+
 					testnet_string += " " + strconv.Itoa(chain.MiniBlocks.Count()) + " " + globals.GetOffset().Round(time.Millisecond).String() + "|" + globals.GetOffsetNTP().Round(time.Millisecond).String() + "|" + globals.GetOffsetP2P().Round(time.Millisecond).String()
 
 					miner_count := derodrpc.CountMiners()
@@ -1348,10 +1352,16 @@ restart_loop:
 				fmt.Printf("unbann %s successful", line_parts[1])
 			}
 
+		case command == "connect_to_seeds":
+			for _, ip := range config.Mainnet_seed_nodes {
+				logger.Info(fmt.Sprintf("Connecting to: %s", ip))
+				go p2p.ConnecToNode(ip)
+			}
+
 		case command == "connect_to_hansen":
 			go p2p.ConnecToNode("213.171.208.37:18089") // dero-node.mysrv.cloud
 			go p2p.ConnecToNode("74.208.211.24:11011")  // dero-node-us.mysrv.cloud
-			go p2p.ConnecToNode("77.68.102.85:11011")   // dero-node.mysrv.cloud
+			go p2p.ConnecToNode("77.68.102.85:11011")   // dero-playground.mysrv.cloud
 
 		case command == "bans":
 			p2p.BanList_Print() // print ban list
@@ -1515,6 +1525,7 @@ func usage(w io.Writer) {
 	io.WriteString(w, "\t\033[1mremove_trusted\033[0m\tTrusted Peer - remove_trusted <ip/tag>\n")
 	io.WriteString(w, "\t\033[1mlist_trusted\033[0m\tShow Trusted Peer List\n")
 	io.WriteString(w, "\t\033[1mconnect_to_hansen\033[0m\tConnect to Hansen nodes\n")
+	io.WriteString(w, "\t\033[1mconnect_to_seeds\033[0m\tConnect to all seed nodes (see status in list_trusted)\n")
 	io.WriteString(w, "\t\033[1mconnect_to_peer\033[0m\tConnect to any peer using - connect_to_peer <ip:p2p-port>\n")
 
 }
@@ -1559,6 +1570,7 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("remove_trusted"),
 	readline.PcItem("list_trusted"),
 	readline.PcItem("connect_to_peer"),
+	readline.PcItem("connect_to_seeds"),
 )
 
 func filterInput(r rune) (rune, bool) {

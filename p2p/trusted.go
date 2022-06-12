@@ -100,12 +100,18 @@ func Add_Trusted(Address string) {
 		if ParseIPNoError(c.Addr.String()) == ParseIPNoError(Address) {
 			trusted_map[ParseIPNoError(c.Addr.String())] = int64(time.Now().UTC().Unix())
 			logger.Info(fmt.Sprintf("Address: %s (%s) - Added to Trusted List", c.Addr.String(), c.Tag))
+			break
+		} else if ParseIPNoError(Address) == Address {
+			trusted_map[Address] = int64(time.Now().UTC().Unix())
+			logger.Info(fmt.Sprintf("Address: %s - Added to Trusted List", Address))
+			break
 		}
 
 		tag_match := regexp.MustCompile(Address)
 		if tag_match.Match([]byte(c.Tag)) {
 			trusted_map[ParseIPNoError(c.Addr.String())] = int64(time.Now().UTC().Unix())
 			logger.Info(fmt.Sprintf("Address: %s (%s) - Added to Trusted List", c.Addr.String(), c.Tag))
+			break
 		}
 	}
 
@@ -141,13 +147,29 @@ func Print_Trusted_Peers() {
 	trust_mutex.Lock()
 	defer trust_mutex.Unlock()
 
-	peer_mutex.Lock()
-	defer peer_mutex.Unlock()
-
 	unique_map := UniqueConnections()
-	fmt.Printf("Trusted Peers\n")
+	fmt.Printf("Trusted Peers\n\n")
 
-	fmt.Printf("%-22s %-32s %-22s\n", "Address", "Added", "Tag")
+	fmt.Printf("Seed Nodes (Always Trusted)\n")
+	for _, ip := range config.Mainnet_seed_nodes {
+
+		connected := false
+
+		for _, conn := range unique_map {
+			if ParseIPNoError(conn.Addr.String()) == ParseIPNoError(ip) {
+				connected = true
+				fmt.Printf("\t%-22s (Connected)\n", ip)
+				break
+			}
+		}
+
+		if !connected {
+			fmt.Printf("\t%-22s\n", ip)
+		}
+	}
+	fmt.Printf("\n")
+
+	fmt.Printf("%-22s %-32s %-10s %-22s\n", "Address", "Added", "Connected", "Tag")
 	for Address, added := range trusted_map {
 
 		found := false
@@ -155,16 +177,18 @@ func Print_Trusted_Peers() {
 		for _, conn := range unique_map {
 			if ParseIPNoError(conn.Addr.String()) == Address {
 				found = true
-				fmt.Printf("%-22s %-32s %-22s\n", Address, time.Unix(added, 0).Format(time.RFC1123), conn.Tag)
+				fmt.Printf("%-22s %-32s %-10s %-22s\n", Address, time.Unix(added, 0).Format(time.RFC1123), "Yes", conn.Tag)
+				break
 			}
 
 		}
 
 		if !found {
-			fmt.Printf("%-22s %-32s\n", Address, time.Unix(added, 0).Format(time.RFC1123))
+			fmt.Printf("%-22s %-32s %-10s\n", Address, time.Unix(added, 0).Format(time.RFC1123), "No")
 		}
 
 	}
+
 	fmt.Printf("\n")
 
 }

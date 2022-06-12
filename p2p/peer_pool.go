@@ -177,8 +177,7 @@ func Peer_Add(p *Peer) {
 	if config.OnlyTrusted {
 
 		if !IsTrustedIP(p.Address) {
-			logger.Info(fmt.Sprintf("Trusted Only Mode: %s is not a trusted node - banned for 3600 seconds", p.Address))
-			go Ban_Address(ParseIPNoError(p.Address), 3600)
+			logger.V(1).Info(fmt.Sprintf("Trusted Only Mode: %s is not a trusted node - ignored", p.Address))
 		}
 
 		for _, conn := range UniqueConnections() {
