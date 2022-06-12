@@ -158,7 +158,13 @@ func Print_Trusted_Peers() {
 		for _, conn := range unique_map {
 			if ParseIPNoError(conn.Addr.String()) == ParseIPNoError(ip) {
 				connected = true
-				fmt.Printf("\t%-22s (Connected)\n", ip)
+
+				version := conn.DaemonVersion
+				if len(version) > 20 {
+					version = version[:20]
+				}
+
+				fmt.Printf("\t%-22s Height: %d - Version: %s (Connected)\n", ip, conn.Height, version)
 				break
 			}
 		}
@@ -169,7 +175,7 @@ func Print_Trusted_Peers() {
 	}
 	fmt.Printf("\n")
 
-	fmt.Printf("%-22s %-32s %-10s %-22s\n", "Address", "Added", "Connected", "Tag")
+	fmt.Printf("%-22s %-32s %-10s %-23s %-8s %-22s\n", "Address", "Added", "Connected", "Height", "Version", "Tag")
 	for Address, added := range trusted_map {
 
 		found := false
@@ -177,7 +183,13 @@ func Print_Trusted_Peers() {
 		for _, conn := range unique_map {
 			if ParseIPNoError(conn.Addr.String()) == Address {
 				found = true
-				fmt.Printf("%-22s %-32s %-10s %-22s\n", Address, time.Unix(added, 0).Format(time.RFC1123), "Yes", conn.Tag)
+
+				version := conn.DaemonVersion
+				if len(version) > 20 {
+					version = version[:20]
+				}
+
+				fmt.Printf("%-22s %-32s %-10s %-23s %-8d %-22s\n", Address, time.Unix(added, 0).Format(time.RFC1123), "Yes", version, conn.Height, conn.Tag)
 				break
 			}
 
