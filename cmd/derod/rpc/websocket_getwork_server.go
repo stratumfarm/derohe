@@ -4,43 +4,38 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"sort"
 	"time"
 
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
+	"math/big"
+	"net"
+	"runtime"
+	"strings"
+	"sync"
+	"sync/atomic"
+
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/rpc"
+	"github.com/deroproject/graviton"
+	"github.com/go-logr/logr"
 	"github.com/lesismal/llib/std/crypto/tls"
+	"github.com/lesismal/nbio"
+	"github.com/lesismal/nbio/logging"
 	"github.com/lesismal/nbio/nbhttp"
 	"github.com/lesismal/nbio/nbhttp/websocket"
 )
 
-import "github.com/lesismal/nbio"
-import "github.com/lesismal/nbio/logging"
-
-import "net"
-import "bytes"
-import "encoding/hex"
-import "encoding/json"
-import "runtime"
-import "strings"
-import "math/big"
-import "crypto/ecdsa"
-import "crypto/elliptic"
-
-import "sync/atomic"
-import "crypto/rand"
-import "crypto/x509"
-import "encoding/pem"
-
-import "github.com/deroproject/derohe/globals"
-import "github.com/deroproject/derohe/config"
-import "github.com/deroproject/derohe/rpc"
-import "github.com/deroproject/graviton"
-import "github.com/go-logr/logr"
-
 // this file implements the non-blocking job streamer
 // only job is to stream jobs to thousands of workers, if any is successful,accept and report back
-
-import "sync"
 
 var memPool = sync.Pool{
 	New: func() interface{} {
@@ -359,11 +354,11 @@ func Getwork_server() {
 
 	//globals.Cron.AddFunc("@every 2s", SendJob) // if daemon restart automaticaly send job
 	go func() { // try to be as optimized as possible to lower hash wastage
-		sleeptime, _ := time.ParseDuration(os.Getenv("JOB_SEND_TIME_DELAY")) // this will hopefully be never required to change
-		if sleeptime.Milliseconds() < 40 {
-			sleeptime = 500 * time.Millisecond
+
+		if config.GETWorkJobDispatchTime.Milliseconds() < 40 {
+			config.GETWorkJobDispatchTime = 500 * time.Millisecond
 		}
-		logger_getwork.Info("Job will be dispatched every", "time", sleeptime)
+		logger_getwork.Info("Job will be dispatched every", "time", config.GETWorkJobDispatchTime)
 		old_mini_count := 0
 		old_time := time.Now()
 		old_height := int64(0)
@@ -371,7 +366,7 @@ func Getwork_server() {
 			if miners_count > 0 {
 				current_mini_count := chain.MiniBlocks.Count()
 				current_height := chain.Get_Height()
-				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > sleeptime {
+				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > config.GETWorkJobDispatchTime {
 					old_mini_count = current_mini_count
 					old_height = current_height
 					SendJob()

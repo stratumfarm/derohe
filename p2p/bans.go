@@ -19,23 +19,25 @@ package p2p
 /* this file implements the peer manager, keeping a list of peers which can be tried for connection etc
  *
  */
-import "os"
-import "fmt"
-import "net"
-import "sync"
-import "time"
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/deroproject/derohe/globals"
+)
 
 //import "sort"
-import "path/filepath"
-import "encoding/json"
 
 //import "encoding/binary"
 //import "container/list"
 
 //import log "github.com/sirupsen/logrus"
-
-import "github.com/deroproject/derohe/globals"
 
 //import "github.com/deroproject/derosuite/crypto"
 
@@ -50,7 +52,9 @@ import "github.com/deroproject/derohe/globals"
 // enableban address  // by default all addresses are bannable
 // disableban address  // this address will never be banned
 
-var ban_map = map[string]uint64{} // keeps ban maps
+var ban_map = map[string]uint64{}     // keeps ban maps
+var permban_map = map[string]uint64{} // keeps ban maps
+
 var ban_mutex sync.Mutex
 
 // loads peers list from disk
@@ -80,6 +84,29 @@ func load_ban_list() {
 	}
 }
 
+// loads peers list from disk
+func load_permban_list() {
+
+	ban_file := filepath.Join(globals.GetDataDirectory(), "permban_list.json")
+
+	if _, err := os.Stat(ban_file); errors.Is(err, os.ErrNotExist) {
+		return // since file doesn't exist , we cannot load it
+	}
+	file, err := os.Open(ban_file)
+	if err != nil {
+		logger.Error(err, "opening ban data file")
+	} else {
+		defer file.Close()
+		decoder := json.NewDecoder(file)
+		err = decoder.Decode(&permban_map)
+		if err != nil {
+			logger.Error(err, "Error unmarshalling ban data")
+		} else { // successfully unmarshalled data
+			logger.V(1).Info("Successfully loaded perm bans from file", "ban_count", (len(permban_map)))
+		}
+	}
+}
+
 //save ban list to disk
 func save_ban_list() {
 
@@ -100,6 +127,26 @@ func save_ban_list() {
 			logger.Error(err, "Error unmarshalling ban data")
 		} else { // successfully unmarshalled data
 			logger.V(1).Info("Successfully saved bans to file", "count", (len(ban_map)))
+		}
+	}
+}
+
+//save ban list to disk
+func save_permban_list() {
+
+	ban_file := filepath.Join(globals.GetDataDirectory(), "permban_list.json")
+	file, err := os.Create(ban_file)
+	if err != nil {
+		logger.Error(err, "creating perm ban data file")
+	} else {
+		defer file.Close()
+		encoder := json.NewEncoder(file)
+		encoder.SetIndent("", "\t")
+		err = encoder.Encode(&permban_map)
+		if err != nil {
+			logger.Error(err, "Error unmarshalling ban data")
+		} else { // successfully unmarshalled data
+			logger.V(1).Info("Successfully saved perm bans to file", "count", (len(permban_map)))
 		}
 	}
 }
@@ -139,6 +186,7 @@ func ban_clean_up() {
 			delete(ban_map, k)
 		}
 	}
+
 }
 
 // convert address to subnet form
@@ -183,6 +231,11 @@ func IsAddressInBanList(address string) bool {
 		return true
 	}
 
+	// if it's a subnet or direct ip, do instant check
+	if _, ok := permban_map[address]; ok {
+		return true
+	}
+
 	ip := net.ParseIP(address) // user provided a valid ip parse and check subnet
 	if ip != nil {
 
@@ -206,6 +259,23 @@ func IsAddressInBanList(address string) bool {
 // manual bans are always placed
 // address can be an address or a subnet
 
+func PermBan_Address(address string) (err error) {
+	ban_mutex.Lock()
+	defer ban_mutex.Unlock()
+
+	// make sure we are not banning seed nodes/exclusive node/priority nodes on command line
+	_, address, err = ParseAddress(address)
+	if err != nil {
+		return
+	}
+
+	logger.Info(fmt.Sprintf("Address: %s - Added to Perm-Ban List", address))
+	permban_map[address] = uint64(time.Now().UTC().Unix())
+	go save_permban_list()
+	go Ban_Address(address, 3600)
+	return
+}
+
 func Ban_Address(address string, ban_seconds uint64) (err error) {
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
@@ -216,8 +286,25 @@ func Ban_Address(address string, ban_seconds uint64) (err error) {
 		return
 	}
 
+	if IsTrustedIP(address) {
+		logger.Info(fmt.Sprintf("Address (%s) is trusted list or a seed node not banning", address))
+		return
+	}
+
 	//logger.Warnf("%s banned for %d secs", address, ban_seconds)
 	ban_map[address] = uint64(time.Now().UTC().Unix()) + ban_seconds
+
+	connection_map.Range(func(k, value interface{}) bool {
+		v := value.(*Connection)
+		if ParseIPNoError(address) == ParseIPNoError(v.Addr.String()) {
+			v.Client.Close()
+			v.Conn.Close()
+			connection_map.Delete(Address(v))
+			return false
+		}
+		return true
+	})
+
 	return
 }
 
@@ -245,6 +332,13 @@ func UnBan_Address(address string) (err error) {
 	defer ban_mutex.Unlock()
 	logger.Info("unbanned", "address", address)
 	delete(ban_map, address)
+
+	// remove from autoban
+	_, ab := permban_map[address]
+	if ab {
+		delete(permban_map, address)
+	}
+
 	return
 }
 
@@ -275,13 +369,20 @@ func BanList_Print() {
 	ban_clean_up() // clean up before printing
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
-	logger.Info(fmt.Sprintf("Ban List contains %d \n", len(ban_map)))
-	logger.Info(fmt.Sprintf("%-22s %-6s\n", "Addr", "Seconds to unban"))
 
+	fmt.Printf("%-22s %-22s %-8s\n", "Addr", "Seconds to unban", "Perm Ban")
 	for k, v := range ban_map {
-		logger.Info(fmt.Sprintf("%-22s %6d\n", k, v-uint64(time.Now().UTC().Unix())))
+
+		is_permban := "no"
+		_, ab := permban_map[k]
+		if ab {
+			is_permban = "yes"
+		}
+
+		fmt.Printf("%-22s %-22d %-8s\n", k, v-uint64(time.Now().UTC().Unix()), is_permban)
 	}
 
+	fmt.Printf("Ban List contains: %d - Perm Ban List: %d\n", len(ban_map), len(permban_map))
 }
 
 // this function return peer count which have successful handshake
@@ -289,4 +390,18 @@ func Ban_Count() (Count uint64) {
 	ban_mutex.Lock()
 	defer ban_mutex.Unlock()
 	return uint64(len(ban_map))
+}
+
+func Ban_Above_Height(height int64) {
+
+	for _, c := range UniqueConnections() {
+
+		if c.Height > int64(height) {
+			logger.Info(fmt.Sprintf("Banning Peer: %s - Height: %d", c.Addr.String(), c.Height))
+			go Ban_Address(ParseIPNoError(c.Addr.String()), 3600)
+
+		}
+
+	}
+
 }

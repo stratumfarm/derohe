@@ -18,21 +18,21 @@ package dvm
 
 // this file implements necessary structure to  SC handling
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+	"math/big"
+	"math/rand"
+	"time"
 
-//import "bytes"
-//import "runtime/debug"
-import "encoding/binary"
-import "time"
-import "math/big"
-import "math/rand"
-import "github.com/deroproject/derohe/cryptography/crypto"
-import "github.com/deroproject/derohe/cryptography/bn256"
-
-import "golang.org/x/xerrors"
-import "github.com/deroproject/graviton"
-import "github.com/deroproject/derohe/rpc"
-import "github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/config" //import "bytes"
+	//import "runtime/debug"
+	"github.com/deroproject/derohe/cryptography/bn256"
+	"github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/rpc"
+	"github.com/deroproject/graviton"
+	"golang.org/x/xerrors"
+)
 
 //import "github.com/deroproject/derohe/transaction"
 
