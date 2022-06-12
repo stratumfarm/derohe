@@ -175,7 +175,7 @@ func Print_Trusted_Peers() {
 	}
 	fmt.Printf("\n")
 
-	fmt.Printf("%-22s %-32s %-10s %-23s %-8s %-22s\n", "Address", "Added", "Connected", "Height", "Version", "Tag")
+	fmt.Printf("%-22s %-32s %-10s %-23s %-8s %-22s\n", "Address", "Added", "Connected", "Version", "Height", "Tag")
 	for Address, added := range trusted_map {
 
 		found := false
