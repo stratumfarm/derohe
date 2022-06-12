@@ -20,30 +20,28 @@ package p2p
  * this will also ensure that a single IP is connected only once
  *
  */
-import "os"
-import "fmt"
-import "net"
-import "math"
-import "sync"
-import "sort"
-import "time"
-import "strings"
-import "strconv"
-import "context"
-import "sync/atomic"
-import "runtime/debug"
+import (
+	"context"
+	"fmt"
+	"math"
+	"net"
+	"runtime/debug"
+	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
-import "github.com/go-logr/logr"
-
-import "github.com/dustin/go-humanize"
-
-import "github.com/deroproject/derohe/block"
-import "github.com/deroproject/derohe/cryptography/crypto"
-import "github.com/deroproject/derohe/globals"
-import "github.com/deroproject/derohe/metrics"
-import "github.com/deroproject/derohe/transaction"
-
-import "github.com/cenkalti/rpc2"
+	"github.com/cenkalti/rpc2"
+	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/metrics"
+	"github.com/deroproject/derohe/transaction"
+	"github.com/dustin/go-humanize"
+	"github.com/go-logr/logr"
+)
 
 // any connection incoming/outgoing can only be in this state
 //type Conn_State uint32
@@ -107,6 +105,10 @@ type Connection struct {
 	onceexit      sync.Once
 
 	Mutex sync.Mutex // used only by connection go routine
+}
+
+func ConnecToNode(address string) {
+	go connect_with_endpoint(address, false)
 }
 
 func Address(c *Connection) string {
@@ -262,18 +264,27 @@ func Connection_Print() {
 
 	logger.Info("Connection info for peers", "count", len(clist), "our Statehash", StateHash)
 
-	fmt.Printf("%-30s %-16s %-5s %-7s %-7s %-7s %23s %3s %5s %s %s %16s %16s\n", "Remote Addr", "PEER ID", "PORT", " State", "Latency", "Offset", "S/H/T", "DIR", "QUEUE", "     IN", "    OUT", "Version", "Statehash")
+	fmt.Printf("%-30s %-16s %-5s %-7s %-7s %-7s %23s %3s %5s %s %s %16s %16s\n", "Remote Addr", "PEER ID", "PORT", " State", "Latency", "Offset", "S/H/T", "DIR", "BTS", "     IN", "    OUT", "Version", "Statehash")
 
 	// sort the list
 	sort.Slice(clist, func(i, j int) bool { return clist[i].Addr.String() < clist[j].Addr.String() })
 
 	our_topo_height := chain.Load_TOPO_HEIGHT()
+	var sum_latency int64
 
 	for i := range clist {
 
 		// skip pending  handshakes and skip ourselves
 		if atomic.LoadUint32(&clist[i].State) == HANDSHAKE_PENDING || GetPeerID() == clist[i].Peer_ID {
 			//	continue
+		}
+
+		PeerAddress := ParseIPNoError(clist[i].Addr.String())
+		var success_rate float64 = 100
+		_, ps := BlockInsertCount[PeerAddress]
+		if ps {
+			total := (BlockInsertCount[PeerAddress].Blocks_Accepted + BlockInsertCount[PeerAddress].Blocks_Rejected)
+			success_rate = float64(float64(float64(BlockInsertCount[PeerAddress].Blocks_Accepted) / float64(total) * 100))
 		}
 
 		dir := "OUT"
@@ -287,6 +298,7 @@ func Connection_Print() {
 			state = "ACTIVE"
 		}
 
+		atomic.AddInt64(&sum_latency, atomic.LoadInt64(&clist[i].Latency))
 		version := clist[i].DaemonVersion
 
 		if len(version) > 20 {
@@ -309,11 +321,13 @@ func Connection_Print() {
 		ctime := time.Now().Sub(clist[i].Created).Round(time.Second)
 
 		hstring := fmt.Sprintf("%d/%d/%d", clist[i].StableHeight, clist[i].Height, clist[i].TopoHeight)
-		fmt.Printf("%-30s %16x %5d %7s %7s %7s %23s %s %5d %7s %7s     %16s %s %x\n", Address(clist[i])+" ("+ctime.String()+")", clist[i].Peer_ID, clist[i].Port, state, time.Duration(atomic.LoadInt64(&clist[i].Latency)).Round(time.Millisecond).String(), time.Duration(atomic.LoadInt64(&clist[i].clock_offset)).Round(time.Millisecond).String(), hstring, dir, 0, humanize.Bytes(atomic.LoadUint64(&clist[i].BytesIn)), humanize.Bytes(atomic.LoadUint64(&clist[i].BytesOut)), version, tag, clist[i].StateHash[:])
+		fmt.Printf("%-30s %16x %5d %7s %7s %7s %23s %s %7.2f %7s %7s     %16s %s %x\n", Address(clist[i])+" ("+ctime.String()+")", clist[i].Peer_ID, clist[i].Port, state, time.Duration(atomic.LoadInt64(&clist[i].Latency)).Round(time.Millisecond).String(), time.Duration(atomic.LoadInt64(&clist[i].clock_offset)).Round(time.Millisecond).String(), hstring, dir, success_rate, humanize.Bytes(atomic.LoadUint64(&clist[i].BytesIn)), humanize.Bytes(atomic.LoadUint64(&clist[i].BytesOut)), version, tag, clist[i].StateHash[:])
 
 		fmt.Print(color_normal)
 	}
 
+	avg_latency := sum_latency / int64(len(clist))
+	fmt.Printf("Average Latency: %7s\n", time.Duration(avg_latency).Round(time.Millisecond).String())
 }
 
 // for continuos update on command line, get the maximum height of all peers
@@ -348,6 +362,19 @@ func Peer_Count() (Count uint64) {
 		}
 		return true
 	})
+	return
+}
+
+// this function return peer count which have successful handshake
+func Peer_Count_Whitelist() (Count uint64) {
+
+	for _, p := range peer_map {
+		if p.Whitelist { // only display white listed peer
+			// whitelisted = "yes"
+			Count++
+		}
+	}
+
 	return
 }
 
@@ -407,7 +434,7 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 		return connections[i].Latency < connections[j].Latency
 	})
 
-	bw_factor, _ := strconv.Atoi(os.Getenv("BW_FACTOR"))
+	bw_factor := int(config.P2PBWFactor)
 	if bw_factor < 1 {
 		bw_factor = 1
 	}
@@ -454,7 +481,11 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 					var dummy Dummy
 					fill_common(&peer_specific_list.Common) // fill common info
 					if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
+						go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Block_Coded", cbl.Bl.GetHash().String(), connection.Peer_ID, err.Error())
+						go LogReject(connection.Addr.String())
 						return
+					} else {
+						go LogAccept(connection.Addr.String())
 					}
 					connection.update(&dummy.Common) // update common information
 
@@ -518,7 +549,11 @@ func broadcast_Chunk(chunk *Block_Chunk, PeerID uint64, first_seen int64) { // i
 				var dummy Dummy
 				fill_common(&peer_specific_list.Common) // fill common info
 				if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
+					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Chunk", fmt.Sprintf("%x", chunk.BLID), connection.Peer_ID, err.Error())
+					go LogReject(connection.Addr.String())
 					return
+				} else {
+					go LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
 			}(v)
@@ -573,7 +608,11 @@ func broadcast_MiniBlock(mbl block.MiniBlock, PeerID uint64, first_seen int64) {
 
 				var dummy Dummy
 				if err := connection.Client.Call("Peer.NotifyMiniBlock", peer_specific_block, &dummy); err != nil {
+					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_MiniBlock", mbl.GetHash().String(), connection.Peer_ID, err.Error())
+					go LogReject(connection.Addr.String())
 					return
+				} else {
+					go LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
 			}(v)
@@ -695,6 +734,8 @@ func trigger_sync() {
 					//connection.Lock()
 
 					connection.logger.V(1).Info("We need to resync with the peer", "our_height", height, "height", connection.Height, "pruned", connection.Pruned)
+
+					logger.Info(fmt.Sprintf("Peer telling us we're on wrong height: %s", connection.Addr.String()))
 
 					//connection.Unlock()
 					// set mode to syncronising

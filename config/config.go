@@ -16,10 +16,12 @@
 
 package config
 
-import "github.com/satori/go.uuid"
+import (
+	"time"
 
-//import "github.com/caarlos0/env/v6"
-import "github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/cryptography/crypto" //import "github.com/caarlos0/env/v6"
+	uuid "github.com/satori/go.uuid"
+)
 
 // all global configuration variables are picked from here
 
@@ -100,7 +102,7 @@ var Mainnet = CHAIN_CONFIG{Name: "mainnet",
 	GETWORK_Default_Port:    10100,
 	RPC_Default_Port:        10102,
 	Wallet_RPC_Default_Port: 10103,
-	Dev_Address:             "dero1qykyta6ntpd27nl0yq4xtzaf4ls6p5e9pqu0k2x4x3pqq5xavjsdxqgny8270",
+	Dev_Address:             "dero1qy07h9mk6xxf2k4x0ymdpezvksjy0talskhpvqmat3xk3d9wczg5jqqvwl0sn",
 	HF1_HEIGHT:              21480,
 	HF2_HEIGHT:              29000,
 	MAJOR_HF2_HEIGHT:        481600,
@@ -136,4 +138,15 @@ var Testnet = CHAIN_CONFIG{Name: "testnet", // testnet will always have last 3 b
 }
 
 // mainnet has a remote daemon node, which can be used be default, if user provides a  --remote flag
-const REMOTE_DAEMON = "89.38.99.117" // "https://rwallet.dero.live"
+const REMOTE_DAEMON = "https://dero-node.mysrv.cloud" // "https://rwallet.dero.live"
+
+var WhitelistIncoming bool = true
+var LogLevel int8 = 0
+var OperatorName string = "Hansen33"
+var P2PTurbo bool = true
+var P2PBWFactor int64 = 2
+var GETWorkJobDispatchTime time.Duration
+var DiagnosticCheckDelay int64 = 3600
+var BlockRejectThreshold int64 = 80
+var PeerLatencyThreshold = time.Duration(2000 * time.Millisecond)
+var OnlyTrusted bool = false

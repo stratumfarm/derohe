@@ -25,18 +25,20 @@ package walletapi
  *
  * *
  */
-//import "io"
-//import "os"
-//import "fmt"
 
 //import "net/url"
-import "net/http"
+import (
+	"crypto/tls"
+	"fmt"
+	"net/http"
+	"net/url"
+	"regexp"
 
-import "github.com/deroproject/derohe/glue/rwc"
-
-import "github.com/creachadair/jrpc2"
-import "github.com/creachadair/jrpc2/channel"
-import "github.com/gorilla/websocket"
+	"github.com/creachadair/jrpc2"
+	"github.com/creachadair/jrpc2/channel"
+	"github.com/deroproject/derohe/glue/rwc"
+	"github.com/gorilla/websocket"
+)
 
 // there should be no global variables, so multiple wallets can run at the same time with different assset
 
@@ -58,19 +60,41 @@ func Connect(endpoint string) (err error) {
 
 	logger.V(1).Info("Daemon endpoint ", "address", Daemon_Endpoint_Active)
 
-	rpc_client.WS, _, err = websocket.DefaultDialer.Dial("ws://"+Daemon_Endpoint_Active+"/ws", nil)
+	u, err := url.Parse(Daemon_Endpoint_Active)
+	if err != nil {
+		logger.Info(fmt.Sprintf("Error parsing endpoint %s", err))
+	}
+
+	// Check Urls
+	is_url := regexp.MustCompile("^http")
+
+	wsSchema := "ws://"
+	if is_url.Match([]byte(Daemon_Endpoint_Active)) {
+		if u.Scheme == "https" {
+			wsSchema = "wss://"
+			Daemon_Endpoint_Active = u.Hostname()
+			if u.Port() != "" {
+				Daemon_Endpoint_Active = Daemon_Endpoint_Active + ":" + u.Port()
+			}
+		}
+	}
+
+	dialer := websocket.DefaultDialer
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	rpc_client.WS, _, err = dialer.Dial(wsSchema+Daemon_Endpoint_Active+"/ws", nil)
 
 	// notify user of any state change
 	// if daemon connection breaks or comes live again
 	if err == nil {
 		if !Connected {
-			logger.V(1).Info("Connection to RPC server successful", "address", "ws://"+Daemon_Endpoint_Active+"/ws")
+			logger.V(1).Info("Connection to RPC server successful", "address", wsSchema+Daemon_Endpoint_Active+"/ws")
 			Connected = true
 		}
 	} else {
-
 		if Connected {
-			logger.V(1).Error(err, "Connection to RPC server Failed", "endpoint", "ws://"+Daemon_Endpoint_Active+"/ws")
+			logger.V(1).Error(err, "Connection to RPC server Failed", "endpoint", wsSchema+Daemon_Endpoint_Active+"/ws")
 		}
 		Connected = false
 		return

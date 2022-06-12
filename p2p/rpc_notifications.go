@@ -16,17 +16,19 @@
 
 package p2p
 
-import "fmt"
-import "sync/atomic"
-import "encoding/binary"
-import "time"
+import (
+	"encoding/binary"
+	"fmt"
+	"sync/atomic"
+	"time"
 
-import "github.com/deroproject/derohe/block"
-import "github.com/deroproject/derohe/cryptography/crypto"
-import "github.com/deroproject/derohe/errormsg"
-import "github.com/deroproject/derohe/transaction"
-import "github.com/deroproject/derohe/metrics"
-import "github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/errormsg"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/metrics"
+	"github.com/deroproject/derohe/transaction"
+)
 
 // handles notifications of inventory
 func (c *Connection) NotifyINV(request ObjectList, response *Dummy) (err error) {
@@ -185,9 +187,13 @@ func (c *Connection) NotifyMiniBlock(request Objects, response *Dummy) (err erro
 		}
 
 		if err, ok = chain.InsertMiniBlock(mbl); !ok {
+			go PeerLogReceiveFail(c.Addr.String(), "InsertMiniBlock", mbl.GetHash().String(), c.Peer_ID, err.Error())
+			// this happens all the time?
+			go LogReject(c.Addr.String())
 			return err
 		} else { // rebroadcast miniblock
 			valid_found = true
+			go LogAccept(c.Addr.String())
 			if valid_found {
 				broadcast_MiniBlock(mbl, c.Peer_ID, request.Sent) // do not send back to the original peer
 			}
@@ -243,8 +249,11 @@ func (c *Connection) processChunkedBlock(request Objects, data_shard_count, pari
 	// check if we can add ourselves to chain
 	if err, ok := chain.Add_Complete_Block(&cbl); ok { // if block addition was successfil
 		// notify all peers
+		go LogAccept(c.Addr.String())
 		Broadcast_Block(&cbl, c.Peer_ID) // do not send back to the original peer
 	} else { // ban the peer for sometime
+		go PeerLogReceiveFail(c.Addr.String(), "InsertMiniBlock", bl.GetHash().String(), c.Peer_ID, err.Error())
+		go LogReject(c.Addr.String())
 		if err == errormsg.ErrInvalidPoW {
 			c.logger.Error(err, "This peer should be banned and terminated")
 			c.exit()

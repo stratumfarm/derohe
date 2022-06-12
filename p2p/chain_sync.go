@@ -16,18 +16,20 @@
 
 package p2p
 
-import "fmt"
-import "time"
-import "math/big"
-import "sync/atomic"
+import (
+	"fmt"
+	"math/big"
+	"sync/atomic"
+	"time"
 
-import "github.com/deroproject/derohe/config"
-import "github.com/deroproject/derohe/globals"
-import "github.com/deroproject/derohe/block"
-import "github.com/deroproject/derohe/errormsg"
-import "github.com/deroproject/derohe/blockchain"
-import "github.com/deroproject/derohe/transaction"
-import "github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/blockchain"
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/cryptography/crypto"
+	"github.com/deroproject/derohe/errormsg"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/transaction"
+)
 
 // used to satisfy difficulty interface
 type MemorySource struct {
@@ -185,7 +187,8 @@ try_again:
 		//pop_count = chain.Load_TOPO_HEIGHT() - response.Start_topoheight
 	}
 
-	if pop_count >= 1 { // peer is claiming his chain is good and we should rewind
+	if pop_count >= 1 && connection.SyncNode { // peer is claiming his chain is good and we should rewind
+		globals.BlockPopCount += pop_count
 		connection.logger.V(1).Info("syncing", "pop_count", pop_count)
 
 		ramstore := MemorySource{Blocks: map[crypto.Hash]*block.Complete_Block{}, Difficulty: map[crypto.Hash]*big.Int{}}
@@ -249,6 +252,8 @@ try_again:
 
 		connection.logger.V(1).Info("rewinded blocks", "pop_count", pop_count)
 		return
+	} else if pop_count >= 1 {
+		logger.Info(fmt.Sprintf("Peer: %s - Is NOT a seed node, but asked us to pop %d block(s), ignoring", connection.Addr.String(), pop_count))
 	}
 
 	// response only 4096 blocks at a time
@@ -352,7 +357,7 @@ func (connection *Connection) process_object_response(response Objects, sent int
 		// check if we can add ourselves to chain
 		err, ok := chain.Add_Complete_Block(&cbl)
 		if !ok && err == errormsg.ErrInvalidPoW {
-			connection.logger.V(2).Error(err, "This peer should be banned")
+			connection.logger.V(-1).Error(err, "This peer should be banned")
 			connection.exit()
 			if syncing {
 				return nil

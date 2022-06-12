@@ -19,22 +19,26 @@ package p2p
 /* this file implements the peer manager, keeping a list of peers which can be tried for connection etc
  *
  */
-import "os"
-import "fmt"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+	"sync"
+	"sync/atomic"
+	"time"
 
-import "errors"
-import "sync"
-import "time"
-import "sort"
-import "path/filepath"
-import "encoding/json"
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/globals"
+	"github.com/go-logr/logr"
+)
 
 //import "encoding/binary"
 //import "container/list"
 
 //import log "github.com/sirupsen/logrus"
-
-import "github.com/deroproject/derohe/globals"
 
 //import "github.com/deroproject/derosuite/crypto"
 
@@ -169,6 +173,32 @@ func Peer_Add(p *Peer) {
 
 	}
 
+	// trusted only if enabled
+	if config.OnlyTrusted {
+
+		// First make sure we remove all untrusted connections
+		for _, conn := range UniqueConnections() {
+			if !IsTrustedIP(conn.Addr.String()) {
+				logger.V(1).Info(fmt.Sprintf("Disconnecting: %s", conn.Addr.String()))
+				conn.Client.Close()
+				conn.Conn.Close()
+				Connection_Delete(conn)
+			}
+		}
+
+		// Check if new peer is trusted before adding it
+		if !IsTrustedIP(p.Address) {
+			logger.V(1).Info(fmt.Sprintf("Trusted Only Mode: %s is not a trusted node - ignored", p.Address))
+			return
+		}
+	}
+
+	if _, ok := permban_map[ParseIPNoError(p.Address)]; ok {
+		logger.V(1).Info(fmt.Sprintf("Peer (%s) on Perm Ban List - Blocked", p.Address))
+		Ban_Address(ParseIPNoError(p.Address), 3600)
+		return
+	}
+
 	if v, ok := peer_map[ParseIPNoError(p.Address)]; ok {
 		v.Lock()
 		// logger.Infof("Peer already in list adding good count")
@@ -178,6 +208,213 @@ func Peer_Add(p *Peer) {
 		// logger.Infof("Peer adding to list")
 		peer_map[ParseIPNoError(p.Address)] = p
 	}
+
+}
+
+func SetLogger(newlogger *logr.Logger) {
+	connection_map.Range(func(k, value interface{}) bool {
+		c := value.(*Connection)
+		c.logger = logger
+		return true
+	})
+
+	logger = *newlogger
+}
+
+func PrintBlockErrors() {
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	fmt.Printf("\nPeer Block Distribution - Errors Log\n")
+
+	fmt.Printf("\n%-16s %-22s %-32s %-8s %-22s\n", "Remote Addr", "Peer ID", "Errors (Receiving / Sending)", "BTS", "Lastest Error")
+	error_count := 0
+	peer_count := 0
+	for _, stat := range Pstat {
+
+		var success_rate float64 = 100
+		_, ps := BlockInsertCount[stat.Address]
+		if ps {
+			total := (BlockInsertCount[stat.Address].Blocks_Accepted + BlockInsertCount[stat.Address].Blocks_Rejected)
+			success_rate = float64(float64(float64(BlockInsertCount[stat.Address].Blocks_Accepted) / float64(total) * 100))
+		}
+
+		errors_text := fmt.Sprintf("%d/%d Collisions: %d", len(stat.Receiving_Errors), len(stat.Sending_Errors), len(stat.Collision_Errors))
+
+		if len(stat.Sending_Errors) == 0 && len(stat.Receiving_Errors) == 0 {
+			continue
+		}
+
+		var latest_error time.Time
+		if len(stat.Sending_Errors) >= 1 {
+			latest_error = stat.Sending_Errors[len(stat.Sending_Errors)-1].When
+		}
+
+		if len(stat.Receiving_Errors) >= 1 {
+			if stat.Receiving_Errors[len(stat.Receiving_Errors)-1].When.Unix() > latest_error.Unix() {
+				latest_error = stat.Receiving_Errors[len(stat.Receiving_Errors)-1].When
+			}
+		}
+		fmt.Printf("%-16s %-22d %-32s %-8.2f %-10s\n", stat.Address, stat.Peer_ID, errors_text, success_rate, latest_error.Format(time.RFC1123))
+
+		peer_count++
+		error_count += len(stat.Sending_Errors) + len(stat.Receiving_Errors)
+	}
+
+	fmt.Printf("\nLogged %d error(s) for %d peer(s)\n", error_count, peer_count)
+	fmt.Print("Type: peer_error <IP>       - to see connection errors\n\n")
+
+}
+
+func PrintPeerErrors(Address string) {
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	Address = ParseIPNoError(Address)
+
+	fmt.Printf("\nPeer Block Distribution - Errors Log\n")
+
+	if len(Address) <= 0 {
+		return
+	}
+
+	_, ps := BlockInsertCount[Address]
+	if ps {
+		total := (BlockInsertCount[Address].Blocks_Accepted + BlockInsertCount[Address].Blocks_Rejected)
+		success_rate := float64(float64(float64(BlockInsertCount[Address].Blocks_Accepted) / float64(total) * 100))
+		fmt.Printf("Block Transmission Success: %d Accepted / %d Rejected - %.2f%%", BlockInsertCount[Address].Blocks_Accepted, BlockInsertCount[Address].Blocks_Rejected, success_rate)
+	}
+
+	for _, stat := range Pstat {
+
+		if Address != stat.Address {
+			continue
+		}
+
+		if len(stat.Collision_Errors) >= 1 {
+			fmt.Print("\nCollision(s):\n")
+			for _, error := range stat.Collision_Errors {
+				fmt.Printf("*  %-32s %-32s %-32s %s\n", error.Block_Type, error.When.Format(time.RFC1123), error.Error_Message, error.Block_ID)
+			}
+		}
+
+		if len(stat.Receiving_Errors) >= 1 {
+			fmt.Print("\nReceiving:\n")
+			for _, error := range stat.Receiving_Errors {
+				fmt.Printf("*  %-32s %-32s %-32s %s\n", error.Block_Type, error.When.Format(time.RFC1123), error.Error_Message, error.Block_ID)
+			}
+		}
+
+		if len(stat.Sending_Errors) >= 1 {
+			fmt.Print("\nSending:\n")
+			for _, error := range stat.Sending_Errors {
+				fmt.Printf("*  %-32s %-32s %-32s %s\n", error.Block_Type, error.When.Format(time.RFC1123), error.Error_Message, error.Block_ID)
+			}
+		}
+
+		fmt.Printf("\nLogged %d error(s) for IN (%d) - OUT (%d)\n", (len(stat.Sending_Errors) + len(stat.Receiving_Errors)), len(stat.Receiving_Errors), len(stat.Sending_Errors))
+
+	}
+
+}
+
+func Print_Peer_Info(Address string) {
+
+	peer_mutex.Lock()
+	defer peer_mutex.Unlock()
+
+	Address = ParseIPNoError(Address)
+
+	if len(Address) <= 0 {
+		fmt.Printf("usage: peer_info <ip address>\n")
+		return
+	}
+
+	fmt.Printf("Peer Information Dashboard\n")
+
+	fmt.Printf("\nConnections:\n\n")
+	fmt.Printf("%-22s %-23s %-8s %-22s %-12s %-8s %-14s\n", "Peer ID", "Version", "Height", "Connected", "Direction", "Latency", "Tag")
+	for _, c := range UniqueConnections() {
+		if ParseIPNoError(c.Addr.String()) == Address {
+
+			direction := "OUT"
+			if c.Incoming {
+				direction = "IN"
+			}
+
+			state := "PENDING"
+			if atomic.LoadUint32(&c.State) == IDLE {
+				state = "IDLE"
+			} else if atomic.LoadUint32(&c.State) == ACTIVE {
+				state = "ACTIVE"
+			}
+
+			is_connected := "no"
+			if IsAddressConnected(Address) {
+				is_connected = fmt.Sprintf("%s (%s)", time.Now().Sub(c.Created).Round(time.Millisecond).String(), state)
+			}
+
+			version := c.DaemonVersion
+			if len(version) > 20 {
+				version = version[:20]
+			}
+
+			fmt.Printf("%-22d %-23s %-8d %-22s %-12s %-8s %-14s\n", c.Peer_ID, version, c.Height, is_connected,
+				direction, time.Duration(atomic.LoadInt64(&c.Latency)).Round(time.Millisecond).String(), c.Tag)
+
+		}
+	}
+	fmt.Printf("\n")
+
+	_, BlockLogs := BlockInsertCount[Address]
+	if BlockLogs {
+
+		total := (BlockInsertCount[Address].Blocks_Accepted + BlockInsertCount[Address].Blocks_Rejected)
+		success_rate := float64(float64(float64(BlockInsertCount[Address].Blocks_Accepted) / float64(total) * 100))
+
+		fmt.Printf("Block Transmission Success Rate: %d Accepted / %d Rejected - %.2f%%\n\n", BlockInsertCount[Address].Blocks_Accepted, BlockInsertCount[Address].Blocks_Rejected,
+			float64(success_rate))
+	}
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	for _, stat := range Pstat {
+
+		if Address != stat.Address {
+			continue
+		}
+
+		var latest_sent_error time.Time
+		if len(stat.Sending_Errors) >= 1 {
+			latest_sent_error = stat.Sending_Errors[len(stat.Sending_Errors)-1].When
+		}
+
+		var latest_recv_error time.Time
+		if len(stat.Receiving_Errors) >= 1 {
+			latest_recv_error = stat.Sending_Errors[len(stat.Receiving_Errors)-1].When
+		}
+
+		fmt.Printf("Error Log:\n\t%-20s %-8d Last Error: %s\n\t%-20s %-8dLast Error: %s\n", "Sending Error(s)", len(stat.Sending_Errors), latest_sent_error.Format(time.RFC1123), "Receiving Error(s)", len(stat.Receiving_Errors), latest_recv_error.Format(time.RFC1123))
+
+		fmt.Printf("\nLogged %d error(s) - IN (%d) - OUT (%d)\n", (len(stat.Sending_Errors) + len(stat.Receiving_Errors)), len(stat.Receiving_Errors), len(stat.Sending_Errors))
+
+	}
+	fmt.Printf("\n")
+}
+
+func Peer_Whitelist_Counts() (Count uint64) {
+	peer_mutex.Lock()
+	defer peer_mutex.Unlock()
+	var count = 0
+	for _, v := range peer_map {
+		if v.Whitelist { // only display white listed peer
+			count++
+		}
+	}
+	return uint64(count)
 }
 
 // a peer marked as fail, will only be connected  based on exponential back-off based on powers of 2
@@ -188,7 +425,47 @@ func Peer_SetFail(address string) {
 	}
 	peer_mutex.Lock()
 	defer peer_mutex.Unlock()
-	p.FailCount++ //  increase fail count, and mark for delayed connect
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	// Clean up our stats
+	for _, ps := range Pstat {
+		var NewSendingErrors []*BlockSendingError
+		for _, se := range ps.Sending_Errors {
+			expiry := se.When.Add(time.Duration(globals.ErrorLogExpirySeconds) * time.Second)
+			if time.Now().Before(expiry) {
+				NewSendingErrors = append(NewSendingErrors, se)
+			}
+			ps.Sending_Errors = NewSendingErrors
+		}
+
+		var NewReceiving_Errors []*BlockReceivingError
+		for _, re := range ps.Receiving_Errors {
+			expiry := re.When.Add(time.Duration(globals.ErrorLogExpirySeconds) * time.Second)
+			if time.Now().Before(expiry) {
+				NewReceiving_Errors = append(NewReceiving_Errors, re)
+			}
+			ps.Receiving_Errors = NewReceiving_Errors
+		}
+
+		var NewCollision_Errors []*BlockCollisionError
+		for _, re := range ps.Collision_Errors {
+			expiry := re.When.Add(time.Duration(globals.ErrorLogExpirySeconds) * time.Second)
+			if time.Now().Before(expiry) {
+				NewCollision_Errors = append(NewCollision_Errors, re)
+			}
+			ps.Collision_Errors = NewCollision_Errors
+		}
+
+	}
+
+	ps, exists := Pstat[ParseIPNoError(address)]
+	if exists {
+		p.FailCount = uint64(len(ps.Sending_Errors) + len(ps.Receiving_Errors))
+	} else {
+		p.FailCount++ //  increase fail count, and mark for delayed connect
+	}
 	p.ConnectAfter = uint64(time.Now().UTC().Unix()) + 1<<(p.FailCount-1)
 }
 
@@ -241,35 +518,94 @@ func Peer_Delete(p *Peer) {
 }
 
 // prints all the connection info to screen
-func PeerList_Print() {
+func PeerList_Print(limit int64) {
 	peer_mutex.Lock()
 	defer peer_mutex.Unlock()
 	fmt.Printf("Peer List\n")
-	fmt.Printf("%-22s %-6s %-4s   %-5s %-7s %9s %3s\n", "Remote Addr", "Active", "Good", "Fail", " State", "Height", "DIR")
+	// fmt.Printf("%-20s %-22s %-23s %-8s %-22s %-12s %-10s %-8s %-8s %-8s %-8s %-14s\n", "Remote Addr", "Peer ID", "Version", "Height", "Connected", "Direction", "Latency", "IN", "OUT", "Good", "Fail", "Tag")
+	fmt.Printf("%-20s %-22s %-23s %-8s %-22s %-12s %-10s %-8s %-22s %-14s\n", "Remote Addr", "Peer ID", "Version", "Height", "Connected", "Direction", "Latency", "Good", "Block Success Rate", "Tag")
 
-	var list []*Peer
+	active_peers := 0
+	pending_peers := 0
+	error_peers := uint64(0)
 	greycount := 0
-	for _, v := range peer_map {
-		if v.Whitelist { // only display white listed peer
-			list = append(list, v)
-		} else {
-			greycount++
-		}
+	whitelistcount := 0
+
+	var count = int64(0)
+	for _, peer := range peer_map {
+
+		connection_map.Range(func(k, value interface{}) bool {
+			c := value.(*Connection)
+
+			Address := ParseIPNoError(c.Addr.String())
+
+			if ParseIPNoError(peer.Address) != Address {
+				return true
+			}
+
+			error_peers += peer.FailCount
+			if peer.Whitelist { // only display white listed peer
+				// whitelisted = "yes"
+				whitelistcount++
+			} else {
+				greycount++
+				return true
+			}
+
+			count++
+			if count > limit {
+				return true
+			}
+
+			direction := "OUT"
+			if c.Incoming {
+				direction = "IN"
+			}
+
+			state := "PENDING"
+			if atomic.LoadUint32(&c.State) == IDLE {
+				pending_peers++
+			}
+			if atomic.LoadUint32(&c.State) == IDLE {
+				state = "IDLE"
+			} else if atomic.LoadUint32(&c.State) == ACTIVE {
+				state = "ACTIVE"
+				active_peers++
+			}
+
+			is_connected := "no"
+			if IsAddressConnected(Address) {
+				is_connected = fmt.Sprintf("%s (%s)", time.Now().Sub(c.Created).Round(time.Millisecond).String(), state)
+			}
+
+			version := c.DaemonVersion
+			if len(version) > 20 {
+				version = version[:20]
+			}
+
+			var success_rate float64 = 100
+			_, bi := BlockInsertCount[Address]
+			if bi {
+				total := (BlockInsertCount[Address].Blocks_Accepted + BlockInsertCount[Address].Blocks_Rejected)
+				success_rate = float64(float64(float64(BlockInsertCount[Address].Blocks_Accepted) / float64(total) * 100))
+			}
+
+			// fmt.Printf("%-20s %-22d %-23s %-8d %-22s %-12s %-10s %-8s %-8s %-8d %-8d %-14s\n", ParseIPNoError(peer.Address), c.Peer_ID, version, c.Height, is_connected,
+			// direction, time.Duration(atomic.LoadInt64(&c.Latency)).Round(time.Millisecond).String(), humanize.Bytes(atomic.LoadUint64(&c.BytesIn)),
+			// humanize.Bytes(atomic.LoadUint64(&c.BytesOut)), peer.GoodCount, peer.FailCount, c.Tag)
+
+			fmt.Printf("%-20s %-22d %-23s %-8d %-22s %-12s %-10s %-8d %-22.2f %-14s\n", ParseIPNoError(peer.Address), c.Peer_ID, version, c.Height, is_connected,
+				direction, time.Duration(atomic.LoadInt64(&c.Latency)).Round(time.Millisecond).String(), peer.GoodCount,
+				success_rate, c.Tag)
+
+			return true
+		})
+
 	}
 
-	// sort the list
-	sort.Slice(list, func(i, j int) bool { return list[i].Address < list[j].Address })
-
-	for i := range list {
-		connected := ""
-		if IsAddressConnected(ParseIPNoError(list[i].Address)) {
-			connected = "ACTIVE"
-		}
-		fmt.Printf("%-22s %-6s %4d %5d \n", list[i].Address, connected, list[i].GoodCount, list[i].FailCount)
-	}
-
-	fmt.Printf("\nWhitelist size %d\n", len(peer_map)-greycount)
+	fmt.Printf("\nWhitelist size %d\n", whitelistcount)
 	fmt.Printf("Greylist size %d\n", greycount)
+	fmt.Printf("Total: %d (Showing Max: %d) - Active: %d - Pending: %d - Error: %d\n", count, limit, active_peers, pending_peers, error_peers)
 
 }
 
@@ -335,13 +671,13 @@ func get_peer_list_specific(addr string) (peers []Peer_Info) {
 	plist := get_peer_list()
 	sort.SliceStable(plist, func(i, j int) bool { return plist[i].Addr < plist[j].Addr })
 
-	if len(plist) <= 31 {
+	if len(plist) <= int(Min_Peers) {
 		peers = plist
 	} else {
 		index := sort.Search(len(plist), func(i int) bool { return plist[i].Addr < addr })
 		for i := range plist {
 			peers = append(peers, plist[(i+index)%len(plist)])
-			if len(peers) >= 31 {
+			if len(peers) >= int(Min_Peers) {
 				break
 			}
 		}
