@@ -321,11 +321,12 @@ type (
 		Miniblocks_In_Memory int   `json:"miniblocks_in_memory"`
 		RemotePopBlockCount  int64 `json:"remote_pop_block_count"`
 
-		CountBlocks        int64   `json:"blocks_count"`
-		CountMinisAccepted int64   `json:"miniblocks_accepted_count"`
-		CountMinisRejected int64   `json:"miniblocks_rejected_count"`
-		Mining_Velocity    float64 `json:"mining_velocity"`
-		Uptime             uint64  `json:"uptime"`
+		CountBlocks           int64   `json:"blocks_count"`
+		CountMinisAccepted    int64   `json:"miniblocks_accepted_count"`
+		CountMinisRejected    int64   `json:"miniblocks_rejected_count"`
+		Minting_Velocity_1hr  float64 `json:"minting_velocity_1hr"`
+		Minting_Velocity_1day float64 `json:"minting_velocity_1day"`
+		Uptime                uint64  `json:"uptime"`
 
 		HashrateEstimatePercent_1hr  uint64 `json:"hashrate_1hr"`
 		HashrateEstimatePercent_1day uint64 `json:"hashrate_1d"`

@@ -63,7 +63,7 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
 ### Developers
 
  * Hansen33 -- Address: dero1qy07h9mk6xxf2k4x0ymdpezvksjy0talskhpvqmat3xk3d9wczg5jqqvwl0sn
- * adrodd -- Address: TBA
+ * arodd -- Address: TBA
  * mmarcel -- Address: dero1qydkj6dznyk5njmzr96hjcr5uj74anqqqv90mg39mtzm4d2dcpwsqqqk6zvve
 
 ### TODO
