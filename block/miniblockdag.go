@@ -40,7 +40,7 @@ var OrphanMiniCount int
 var miner_mini_mutex sync.Mutex
 
 var MyBlocks = make(map[string][]MiniBlock)
-var MyOrphanBlocks map[string][]MiniBlock
+var MyOrphanBlocks = make(map[string][]MiniBlock)
 
 func AddBlockToMyCollection(mbl MiniBlock, miner string) {
 	miner_mini_mutex.Lock()

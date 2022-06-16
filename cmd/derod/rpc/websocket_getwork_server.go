@@ -184,7 +184,14 @@ func UpdateMinerStats() {
 		i.blocks = sess.blocks
 		i.miniblocks = sess.miniblocks
 		i.rejected = sess.rejected
-		i.orphaned = uint64(len(block.MyOrphanBlocks[conn.RemoteAddr().String()])) // Update orphaned list
+
+		_, x := block.MyOrphanBlocks[conn.RemoteAddr().String()]
+		if x {
+			i.orphaned = uint64(len(block.MyOrphanBlocks[conn.RemoteAddr().String()]))
+		} else {
+			i.orphaned = 0
+		}
+
 		CountMinisOrphaned += int64(i.orphaned)
 		i.address = fmt.Sprintf("%s", sess.address)
 
