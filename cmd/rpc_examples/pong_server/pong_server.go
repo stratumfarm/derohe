@@ -16,12 +16,12 @@ import (
 	"os"
 	"time"
 
-	"etcd.io/bbolt"
 	"github.com/go-logr/logr"
 	"github.com/stratumfarm/derohe/globals"
 	"github.com/stratumfarm/derohe/rpc"
 	"github.com/stratumfarm/derohe/walletapi"
 	"github.com/ybbus/jsonrpc"
+	"go.etcd.io/bbolt"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
