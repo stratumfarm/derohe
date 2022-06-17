@@ -246,18 +246,15 @@ func ShowMinerInfo(wallet string) {
 		good_blocks := stat.blocks + stat.miniblocks
 		bad_blocks := stat.rejected + stat.orphaned
 
-		success_rate := "100"
+		success_rate := float64(100)
+
 		if bad_blocks >= 1 {
 
-			if bad_blocks > good_blocks {
-				success_rate = fmt.Sprintf("%.2f%%", 100-float64((float64(good_blocks)/float64(bad_blocks))*100))
-			} else {
-				success_rate = fmt.Sprintf("-%.2f%%", 100-float64((float64(good_blocks)/float64(bad_blocks))*100))
+			success_rate = float64(float64(float64(bad_blocks) / float64(good_blocks) * 100))
 
-			}
 		}
 
-		fmt.Printf("%-32s %-12s %-12d %-12d %-12d %-12d %s\n", ip_address, is_connected, stat.miniblocks, stat.blocks, stat.rejected, stat.orphaned, success_rate)
+		fmt.Printf("%-32s %-12s %-12d %-12d %-12d %-12d %.2f\n", ip_address, is_connected, stat.miniblocks, stat.blocks, stat.rejected, stat.orphaned, success_rate)
 
 	}
 
@@ -317,18 +314,15 @@ func ListMiners() {
 		good_blocks := stat.blocks + stat.miniblocks
 		bad_blocks := stat.rejected + stat.orphaned
 
-		success_rate := "100"
+		success_rate := float64(100)
+
 		if bad_blocks >= 1 {
 
-			if bad_blocks > good_blocks {
-				success_rate = fmt.Sprintf("%.2f%%", 100-float64((float64(good_blocks)/float64(bad_blocks))*100))
-			} else {
-				success_rate = fmt.Sprintf("-%.2f%%", 100-float64((float64(good_blocks)/float64(bad_blocks))*100))
+			success_rate = float64(float64(float64(bad_blocks) / float64(good_blocks) * 100))
 
-			}
 		}
 
-		fmt.Printf("%-72s %-10s %-12s %-12d %-12d %-12d %-12d %s\n", wallet, stat.is_connected, miners_connected_str, stat.miniblocks, stat.blocks, stat.rejected, stat.orphaned, success_rate)
+		fmt.Printf("%-72s %-10s %-12s %-12d %-12d %-12d %-12d %.2f\n", wallet, stat.is_connected, miners_connected_str, stat.miniblocks, stat.blocks, stat.rejected, stat.orphaned, success_rate)
 
 	}
 

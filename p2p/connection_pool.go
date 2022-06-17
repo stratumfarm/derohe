@@ -151,7 +151,7 @@ func Connection_Pending_Clear() {
 		if time.Now().Sub(v.update_received).Round(time.Second).Seconds() > 20 {
 			v.exit()
 			Connection_Delete(v)
-			v.logger.V(1).Info("Purging connection due since idle")
+			v.logger.V(1).Info(fmt.Sprintf("Purging connection (%s) due since idle for %s", v.Addr.String(), time.Now().Sub(v.update_received).Round(time.Second).String()))
 		}
 
 		if IsAddressInBanList(Address(v)) {
