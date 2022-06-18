@@ -343,14 +343,13 @@ func main() {
 					testnet_string += " " + strconv.Itoa(chain.MiniBlocks.Count()) + " " + globals.GetOffset().Round(time.Millisecond).String() + "|" + globals.GetOffsetNTP().Round(time.Millisecond).String() + "|" + globals.GetOffsetP2P().Round(time.Millisecond).String()
 
 					good_blocks := (derodrpc.CountMinisAccepted + derodrpc.CountBlocks)
-					bad_blocks := (derodrpc.CountMinisRejected + derodrpc.CountMinisOrphaned)
 
 					miner_count := derodrpc.CountMiners()
 					unique_miner_count := derodrpc.CountUniqueMiners
 
 					l.SetPrompt(fmt.Sprintf("\033[1m\033[32mDERO HE (\033[31m%s-mod\033[32m):%s \033[0m"+color+"%d/%d [%d/%d] "+pcolor+"P %d/%d TXp %d:%d \033[32mNW %s >MN %d/%d [%d/%d] %s>>\033[0m ",
 						config.OperatorName, turtle_string, our_height, topo_height, best_height, best_topo_height, peer_whitelist, peer_count, mempool_tx_count,
-						regpool_tx_count, hash_rate_string, unique_miner_count, miner_count, good_blocks, (good_blocks + bad_blocks), testnet_string))
+						regpool_tx_count, hash_rate_string, unique_miner_count, miner_count, (good_blocks - derodrpc.CountMinisOrphaned), (good_blocks + derodrpc.CountMinisRejected), testnet_string))
 					l.Refresh()
 					last_second = time.Now().Unix()
 					last_our_height = our_height
