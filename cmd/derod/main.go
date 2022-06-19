@@ -945,18 +945,16 @@ restart_loop:
 			}
 			fmt.Printf("\tMy Orphan Block Rate: %.2f%%\n", OrphanBlockRate)
 
-			//if derodrpc.CountMiners() > 0 { // only give info if we have a miner connected
 			fmt.Printf("\tIB:%d MB:%d MBR:%d MBO:%d\n", derodrpc.CountBlocks, derodrpc.CountMinisAccepted, derodrpc.CountMinisRejected, derodrpc.CountMinisOrphaned)
 			fmt.Printf("\tMB %.02f%%(1hr)\t%.05f%%(1d)\t%.06f%%(7d)\t(Moving average %%, will be 0 if no miniblock found)\n", derodrpc.HashrateEstimatePercent_1hr(), derodrpc.HashrateEstimatePercent_1day(), derodrpc.HashrateEstimatePercent_7day())
 			mh_1hr := uint64((float64(chain.Get_Network_HashRate()) * derodrpc.HashrateEstimatePercent_1hr()) / 100)
 			mh_1d := uint64((float64(chain.Get_Network_HashRate()) * derodrpc.HashrateEstimatePercent_1day()) / 100)
 			mh_7d := uint64((float64(chain.Get_Network_HashRate()) * derodrpc.HashrateEstimatePercent_7day()) / 100)
 			fmt.Printf("\tAvg Mining HR %s(1hr)\t%s(1d)\t%s(7d)\n", hashratetostring(mh_1hr), hashratetostring(mh_1d), hashratetostring(mh_7d))
-			//}
+			fmt.Printf("\tReward Generated (since uptime): %s\n", globals.FormatMoney(blockchain.CalcBlockReward(uint64(chain.Get_Height()/10))*uint64(blocksMinted-derodrpc.CountMinisOrphaned)))
 
 			fmt.Printf("\n")
 			fmt.Printf("Current Block Reward: %s\n", globals.FormatMoney(blockchain.CalcBlockReward(uint64(chain.Get_Height()))))
-			fmt.Printf("Reward Generated (since uptime): %s\n", globals.FormatMoney(blockchain.CalcBlockReward(uint64(chain.Get_Height()))*uint64(blocksMinted)))
 			fmt.Printf("\n")
 
 			// print hardfork status on second line
