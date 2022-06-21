@@ -174,10 +174,12 @@ func UpdateMinerStats() {
 	client_list_mutex.Lock()
 	defer client_list_mutex.Unlock()
 
+	miner_stats_mutex.Lock()
+	defer miner_stats_mutex.Unlock()
+
 	var unique_miners = make(map[string]int)
 
 	for conn, sess := range client_list {
-		miner_stats_mutex.Lock()
 
 		unique_miners[sess.address.String()]++
 
@@ -199,21 +201,18 @@ func UpdateMinerStats() {
 
 		miner_stats[conn.RemoteAddr().String()] = i
 
-		miner_stats_mutex.Unlock()
 	}
 
 	CountUniqueMiners = int64(len(unique_miners))
 
 	// reset counter
 	CountMinisOrphaned = 0
-	miner_stats_mutex.Lock()
 	for miner := range miner_stats {
 		_, found := block.MyOrphanBlocks[miner]
 		if found {
 			CountMinisOrphaned += int64(len(block.MyOrphanBlocks[miner]))
 		}
 	}
-	miner_stats_mutex.Unlock()
 }
 
 func MinerIsConnected(ip_address string) bool {
@@ -235,6 +234,7 @@ func ShowMinerInfo(wallet string) {
 	fmt.Print("Miner Info\n\n")
 
 	miner_stats_mutex.Lock()
+	defer miner_stats_mutex.Unlock()
 
 	count := 0
 	for ip_address, stat := range miner_stats {
@@ -272,8 +272,6 @@ func ShowMinerInfo(wallet string) {
 
 	}
 
-	miner_stats_mutex.Unlock()
-
 	fmt.Print("\n")
 
 }
@@ -295,6 +293,7 @@ func ListMiners() {
 
 	// Aggregate miner stats per wallet
 	miner_stats_mutex.Lock()
+	defer miner_stats_mutex.Unlock()
 
 	for ip_address, stat := range miner_stats {
 		i := miners[fmt.Sprintf("%s", stat.address)]
@@ -339,8 +338,6 @@ func ListMiners() {
 		fmt.Printf("%-72s %-10s %-12s %-12d %-12d %-12d %-12d %.2f\n", wallet, stat.is_connected, miners_connected_str, stat.miniblocks, stat.blocks, stat.rejected, stat.orphaned, success_rate)
 
 	}
-
-	miner_stats_mutex.Unlock()
 
 	fmt.Print("\n")
 }

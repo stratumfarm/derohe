@@ -336,7 +336,7 @@ func main() {
 					if config.OnlyTrusted {
 						turtle_string = " (\033[31mTrusted Mode\033[32m)"
 						if globals.NetworkTurtle {
-							turtle_string = turtle_string + " (!) "
+							turtle_string = turtle_string + " (!)"
 						}
 					}
 
@@ -1322,6 +1322,10 @@ restart_loop:
 				fmt.Printf("usage: clear_peer_stats <ip address>\n")
 			}
 
+		case command == "list_all_connections": // print peer list
+
+			go p2p.ListAllConnections()
+
 		case command == "peer_list": // print peer list
 
 			limit := int64(25)
@@ -1700,6 +1704,7 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("mined_blocks"),
 	readline.PcItem("orphaned_blocks"),
 	readline.PcItem("address_to_name"),
+	readline.PcItem("list_all_connections"),
 )
 
 func filterInput(r rune) (rune, bool) {
