@@ -21,13 +21,13 @@ var DiagnosticInterval uint64 = 1
 
 func ToggleDebug(l *readline.Instance, log_level int8) {
 
-	if config.LogLevel == log_level {
+	if config.RunningConfig.LogLevel == log_level {
 		return
 	}
 
 	exename, _ := os.Executable()
 
-	if config.LogLevel > 0 {
+	if config.RunningConfig.LogLevel > 0 {
 		logger.Info(fmt.Sprint("Disabling DEBUG (some connection might take few seconds)"))
 	}
 
@@ -49,7 +49,7 @@ func ToggleDebug(l *readline.Instance, log_level int8) {
 
 	logger.V(1).Info("Debug (ENABLED)")
 
-	config.LogLevel = log_level
+	config.RunningConfig.LogLevel = log_level
 
 }
 
@@ -57,7 +57,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 	// when - this is check all the time so
 
-	if p2p.Peer_Count() < 1 && time.Now().Unix() < globals.NextDiagnocticCheck+60 {
+	if p2p.Peer_Count() <= 1 && time.Now().Unix() < globals.NextDiagnocticCheck+60 {
 		return
 	}
 
@@ -80,7 +80,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	// 	time.Sleep(60 * time.Second)
 	// }
 
-	var old_debug_level = config.LogLevel
+	var old_debug_level = config.RunningConfig.LogLevel
 	io.WriteString(w, "\n* Diagnostics Sequence Initiated ... \n\n")
 	ToggleDebug(l, 0)
 	logger.Info("", "OS", runtime.GOOS, "ARCH", runtime.GOARCH, "GOMAXPROCS", runtime.GOMAXPROCS(0))
@@ -218,7 +218,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 			outgoing_count++
 		}
 
-		if time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond) > config.PeerLatencyThreshold {
+		if time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond) > config.RunningConfig.PeerLatencyThreshold {
 			critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Latency: %s", Address, time.Duration(atomic.LoadInt64(&peer.Latency)).Round(time.Millisecond)))
 		}
 		//check if latency is good or bad - and repotr
@@ -235,7 +235,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 		AcceptedCount, RejectedCount, TotalErrors, SuccessRate := p2p.GetPeerBTS(Address)
 		// check if this is a bad actor
-		if TotalErrors >= 100 && SuccessRate <= float64(config.BlockRejectThreshold) {
+		if TotalErrors >= 100 && SuccessRate <= float64(config.RunningConfig.BlockRejectThreshold) {
 			peer_errors = append(peer_errors, fmt.Sprintf("Peer: %s - Is a suspecious actor, BTS: %d Accepted / %d Rejected - %.2f%%", Address, AcceptedCount, RejectedCount, SuccessRate))
 			critical_errors = append(critical_errors, fmt.Sprintf("Peer: %s - Is a potential bad actor (BTS: %.2f%%), investigate and consider ban", Address, SuccessRate))
 		}
@@ -305,7 +305,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	}
 
 	// set next diagnostic check in 1 hour
-	globals.NextDiagnocticCheck = time.Now().Unix() + config.DiagnosticCheckDelay
+	globals.NextDiagnocticCheck = time.Now().Unix() + config.RunningConfig.DiagnosticCheckDelay
 
 	// mempool_tx_count := len(chain.Mempool.Mempool_List_TX())
 	// regpool_tx_count := len(chain.Regpool.Regpool_List_TX())

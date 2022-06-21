@@ -138,10 +138,10 @@ func Connection_Delete(c *Connection) {
 	ip_str, x := ConnectDuplicatioMap[ParseIPNoError(c.Addr.String())]
 	if x {
 		if ip_str == c.Addr.String() {
-			c.logger.Info(fmt.Sprintf("Deleting Connection: %s", c.Addr.String()))
+			c.logger.V(2).Info(fmt.Sprintf("Deleting Connection: %s", c.Addr.String()))
 			delete(ConnectDuplicatioMap, ParseIPNoError(c.Addr.String()))
 		} else {
-			c.logger.Info(fmt.Sprintf("Duplicate Deleting Connection: %s vs %s", ip_str, c.Addr.String()))
+			c.logger.V(2).Info(fmt.Sprintf("Deleting Duplicate Connection: %s vs %s", ip_str, c.Addr.String()))
 		}
 	}
 
@@ -181,7 +181,7 @@ func ListAllConnections() {
 
 		if x {
 			for _, con := range myconnections[ParseIPNoError(v.Addr.String())] {
-				con.logger.Info(fmt.Sprintf("Connection (%s) added %s", con.Addr.String(), time.Now().Sub(con.Created).Round(time.Second).String()))
+				logger.Info(fmt.Sprintf("Connection (%s) added to %s, last update from peer was %s ago", con.Addr.String(), time.Now().Sub(con.Created).Round(time.Second).String(), time.Now().Sub(con.update_received).Round(time.Second).String()))
 
 			}
 
@@ -190,7 +190,7 @@ func ListAllConnections() {
 		return true
 	})
 
-	fmt.Printf("\nTotal Connections: %d (Unique: %d)\n", conn_count, len(myconnections))
+	logger.Info(fmt.Sprintf("Total Connections: %d (Unique: %d)", conn_count, len(myconnections)))
 
 }
 
@@ -207,7 +207,7 @@ func Connection_Pending_Clear() {
 		if time.Now().Sub(v.update_received).Round(time.Second).Seconds() > 20 && pending_clear_count < 10 {
 			v.exit()
 			Connection_Delete(v)
-			v.logger.V(1).Info(fmt.Sprintf("Purging connection (%s) due since idle for %s", v.Addr.String(), time.Now().Sub(v.update_received).Round(time.Second).String()))
+			v.logger.V(1).Info(fmt.Sprintf("Purging connection (%s) since idle for %s", v.Addr.String(), time.Now().Sub(v.update_received).Round(time.Second).String()))
 			pending_clear_count++
 		}
 
@@ -221,7 +221,7 @@ func Connection_Pending_Clear() {
 	})
 
 	if pending_clear_count > 1 {
-		logger.Info(fmt.Sprintf("Cleared out %d/%d connections", pending_clear_count, Peer_Count()))
+		logger.V(1).Info(fmt.Sprintf("Purged %d/%d connections", pending_clear_count, Peer_Count()))
 	}
 }
 
@@ -257,15 +257,14 @@ func Connection_Add(c *Connection) bool {
 		connection_counter++
 		c.Created = time.Now()
 		c.update_received = time.Now()
-		// c.logger.V(3).Info("IP address being added", "ip", c.Addr.String())
-		c.logger.Info(fmt.Sprintf("IP address being added (%d)", connection_counter), "ip", c.Addr.String())
+
+		c.logger.V(3).Info(fmt.Sprintf("IP address being added (%d)", connection_counter), "ip", c.Addr.String())
 
 		ConnectDuplicatioMap[ParseIPNoError(c.Addr.String())] = c.Addr.String()
 
 		return true
 	} else {
-		c.logger.Info("IP address already has one connection, exiting this connection", "ip", c.Addr.String(), "pre", dup.(*Connection).Addr.String())
-		// c.logger.V(3).Info("IP address already has one connection, exiting this connection", "ip", c.Addr.String(), "pre", dup.(*Connection).Addr.String())
+		c.logger.V(3).Info("IP address already has one connection, exiting this connection", "ip", c.Addr.String(), "pre", dup.(*Connection).Addr.String())
 		c.exit()
 		return false
 	}
@@ -498,7 +497,7 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 		return connections[i].Latency < connections[j].Latency
 	})
 
-	bw_factor := int(config.P2PBWFactor)
+	bw_factor := int(config.RunningConfig.P2PBWFactor)
 	if bw_factor < 1 {
 		bw_factor = 1
 	}

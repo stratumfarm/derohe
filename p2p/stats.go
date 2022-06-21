@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"sync"
 	"time"
+
+	"github.com/deroproject/derohe/config"
 )
 
 type BlockInsertCounter struct {
@@ -241,4 +243,54 @@ func GetPeerBTS(Address string) (Accepted uint64, Rejected uint64, Total uint64,
 	}
 
 	return Accepted, Rejected, Total, SuccessRate
+}
+
+func ClearPeerLogsCron() {
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	cleared_counter := 0
+	for peer, stat := range Pstat {
+
+		var Sending_Errors []BlockSendingError
+		var Receiving_Errors []BlockReceivingError
+		var Collision_Errors []BlockCollisionError
+
+		for _, log := range stat.Sending_Errors {
+			if log.When.Unix()+config.RunningConfig.ErrorLogExpirySeconds > time.Now().Unix() {
+				Sending_Errors = append(Sending_Errors, log)
+			} else {
+				cleared_counter++
+			}
+		}
+
+		for _, log := range stat.Receiving_Errors {
+			if log.When.Unix()+config.RunningConfig.ErrorLogExpirySeconds > time.Now().Unix() {
+				Receiving_Errors = append(Receiving_Errors, log)
+			} else {
+				cleared_counter++
+			}
+		}
+
+		for _, log := range stat.Collision_Errors {
+			if log.When.Unix()+config.RunningConfig.ErrorLogExpirySeconds > time.Now().Unix() {
+				Collision_Errors = append(Collision_Errors, log)
+			} else {
+				cleared_counter++
+			}
+		}
+
+		stat.Sending_Errors = Sending_Errors
+		stat.Receiving_Errors = Receiving_Errors
+		stat.Collision_Errors = Collision_Errors
+
+		if len(stat.Sending_Errors) == 0 && len(stat.Receiving_Errors) == 0 && len(stat.Collision_Errors) == 0 {
+			delete(Pstat, peer)
+		} else {
+			Pstat[peer] = stat
+		}
+	}
+
+	logger.V(2).Info(fmt.Sprintf("Cleared (%d) peer logs", cleared_counter))
 }

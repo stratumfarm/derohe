@@ -188,7 +188,7 @@ func Peer_Add(p *Peer) {
 	}
 
 	// trusted only if enabled
-	if config.OnlyTrusted {
+	if config.RunningConfig.OnlyTrusted {
 
 		// First make sure we remove all untrusted connections
 		for _, conn := range UniqueConnections() {
@@ -240,7 +240,7 @@ func PrintBlockErrors() {
 	Stats_mutex.Lock()
 	defer Stats_mutex.Unlock()
 
-	fmt.Printf("\nPeer Block Distribution - Errors Log\n")
+	fmt.Printf("\nPeer Block Distribution - Errors Log (last %s)\n", time.Duration(config.RunningConfig.ErrorLogExpirySeconds*int64(time.Second)).Round(time.Second))
 
 	fmt.Printf("\n%-16s %-32s %-8s %-22s\n", "Remote Addr", "Errors (Receiving / Sending)", "BTS", "Lastest Error")
 	error_count := 0
@@ -285,7 +285,7 @@ func PrintPeerErrors(Address string) {
 
 	Address = ParseIPNoError(Address)
 
-	fmt.Printf("\nPeer Block Distribution - Errors Log\n")
+	fmt.Printf("\nPeer Block Distribution - Errors Log (last %s)\n", time.Duration(config.RunningConfig.ErrorLogExpirySeconds*int64(time.Second)).Round(time.Second))
 
 	if len(Address) <= 0 {
 		return
