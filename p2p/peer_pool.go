@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -140,6 +141,7 @@ func clean_up() {
 	defer peer_mutex.Unlock()
 	for k, v := range peer_map {
 		if IsAddressConnected(ParseIPNoError(v.Address)) {
+			v.FailCount = 0
 			continue
 		}
 		if v.FailCount >= 8 { // roughly 8 tries before we discard the peer
@@ -321,6 +323,73 @@ func PrintPeerErrors(Address string) {
 
 		fmt.Printf("\nLogged %d error(s) for IN (%d) - OUT (%d)\n", (len(stat.Sending_Errors) + len(stat.Receiving_Errors)), len(stat.Receiving_Errors), len(stat.Sending_Errors))
 		fmt.Printf("Block Transmission Success Rate: %d Accepted / %d Rejected - %.2f%%\n\n", AcceptedCount, RejectedCount, SuccessRate)
+	}
+
+}
+
+func Show_Selfish_Peers() {
+
+	fmt.Printf("\nSelfish Peers - Errors Log\n")
+
+	Selfish_mutex.Lock()
+	defer Selfish_mutex.Unlock()
+
+	fmt.Printf("%-32s %-22s %-14s %-14s %-14s\n", "Address", "BTS - A/R", "Collision Rate", "Tip Fail Rate", "Total Acceptance Rate")
+
+	for Address, Logs := range SelfishNodeStats {
+
+		is_tip_issue := regexp.MustCompile("^tip could not be expanded")
+		is_collision := regexp.MustCompile("^collision ")
+
+		CollisionRate := float64(0)
+		TIPFailRate := float64(0)
+
+		Collisions := 0
+		TIPFailCount := 0
+
+		for _, log := range Logs {
+			if is_collision.Match([]byte(log.Error_Message)) {
+				Collisions++
+			}
+			if is_tip_issue.Match([]byte(log.Error_Message)) {
+				TIPFailCount++
+			}
+		}
+
+		TARate := float64(0)
+		TotalAcceptance := float64(Collisions + TIPFailCount)
+		if globals.BlocksMined >= 1 {
+			if Collisions >= 1 {
+				CollisionRate = float64((float64(Collisions) / float64(globals.BlocksMined)) * 100)
+			}
+
+			if TIPFailCount >= 1 {
+				TIPFailRate = float64((float64(TIPFailCount) / float64(globals.BlocksMined)) * 100)
+			}
+
+			if TotalAcceptance >= 1 {
+				TARate = float64((TotalAcceptance / float64(globals.BlocksMined)) * 100)
+			}
+
+		}
+
+		CollisionText := fmt.Sprintf("%d (%.2f%%)", Collisions, CollisionRate)
+		TIPText := fmt.Sprintf("%d (%.2f%%)", TIPFailCount, TIPFailRate)
+
+		AcceptedCount, RejectedCount, _, SuccessRate := GetPeerBTS(Address)
+		BTS := fmt.Sprintf("%.2f%% - %d/%d", SuccessRate, AcceptedCount, RejectedCount)
+
+		for _, error := range Logs {
+
+			if is_collision.Match([]byte(error.Error_Message)) || is_tip_issue.Match([]byte(error.Error_Message)) {
+				continue
+			}
+			fmt.Printf("\t%-32s %-32s %-32s\n", error.Block_Type, error.When.Format(time.RFC1123), error.Error_Message)
+		}
+
+		ta_out := fmt.Sprintf("%.2f%%", TARate)
+		fmt.Printf("%-32s %-22s %-14s %-14s %-14s\n", Address, BTS, CollisionText, TIPText, ta_out)
+
 	}
 
 }

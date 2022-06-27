@@ -131,6 +131,7 @@ func CountMiners() int {
 	defer cleanup()
 	client_list_mutex.Lock()
 	defer client_list_mutex.Unlock()
+
 	miners_count = len(client_list)
 	return miners_count
 }
@@ -213,6 +214,8 @@ func UpdateMinerStats() {
 			CountMinisOrphaned += int64(len(block.MyOrphanBlocks[miner]))
 		}
 	}
+
+	globals.BlocksMined = (CountMinisAccepted + CountBlocks) - CountMinisOrphaned
 }
 
 func MinerIsConnected(ip_address string) bool {
@@ -230,6 +233,8 @@ func MinerIsConnected(ip_address string) bool {
 }
 
 func ShowMinerInfo(wallet string) {
+
+	UpdateMinerStats()
 
 	fmt.Print("Miner Info\n\n")
 
@@ -288,6 +293,8 @@ type miner_counter struct {
 }
 
 func ListMiners() {
+
+	UpdateMinerStats()
 
 	var miners = make(map[string]miner_counter)
 
@@ -407,13 +414,10 @@ func SendJob() {
 		}(rk, rv)
 
 	}
-	go UpdateMinerStats()
-
 }
 
 func newUpgrader() *websocket.Upgrader {
 	u := websocket.NewUpgrader()
-	go UpdateMinerStats()
 
 	u.OnMessage(func(c *websocket.Conn, messageType websocket.MessageType, data []byte) {
 		// echo
@@ -499,9 +503,6 @@ func newUpgrader() *websocket.Upgrader {
 			}
 			ban_list[miner] = i
 		}
-
-		go UpdateMinerStats()
-
 	})
 	u.OnClose(func(c *websocket.Conn, err error) {
 		client_list_mutex.Lock()

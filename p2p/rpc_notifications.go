@@ -253,7 +253,7 @@ func (c *Connection) processChunkedBlock(request Objects, data_shard_count, pari
 		go LogAccept(c.Addr.String())
 
 	} else { // ban the peer for sometime
-		go PeerLogReceiveFail(c.Addr.String(), "InsertMiniBlock", c.Peer_ID, err.Error())
+		go PeerLogReceiveFail(c.Addr.String(), "Add_Complete_Block", c.Peer_ID, err.Error())
 		go LogReject(c.Addr.String())
 		if err == errormsg.ErrInvalidPoW {
 			c.logger.Error(err, "This peer should be banned and terminated")

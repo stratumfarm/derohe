@@ -127,9 +127,12 @@ func load_config_file() {
 		decoder := json.NewDecoder(file)
 		err = decoder.Decode(&config.RunningConfig)
 		if err != nil {
-			logger.Error(err, "Error loading config fom file")
-		} else { // successfully unmarshalled data
-			logger.V(1).Info("Successfully loaded config from file", "peer_count")
+			logger.Error(err, "Error loading config from file")
+		} else { // successfully loaded
+			logger.V(1).Info("Successfully loaded config from file")
+
+			p2p.Min_Peers = config.RunningConfig.Min_Peers
+			p2p.Max_Peers = config.RunningConfig.Max_Peers
 		}
 	}
 
@@ -261,12 +264,8 @@ func main() {
 	rpcserver, _ := derodrpc.RPCServer_Start(params)
 
 	i, err := strconv.ParseInt(os.Getenv("JOB_SEND_TIME_DELAY"), 10, 64)
-	if err != nil {
+	if err != nil && i > 0 {
 		config.RunningConfig.GETWorkJobDispatchTime = time.Duration(i * int64(time.Millisecond))
-	}
-
-	if config.RunningConfig.GETWorkJobDispatchTime.Milliseconds() < 40 {
-		config.RunningConfig.GETWorkJobDispatchTime = 500 * time.Millisecond
 	}
 
 	go derodrpc.Getwork_server()
@@ -318,6 +317,7 @@ func main() {
 	}
 	globals.Cron.Start() // start cron jobs
 
+	globals.Cron.AddFunc("@every 10s", derodrpc.UpdateMinerStats)
 	// This tiny goroutine continuously updates status as required
 	go func() {
 		last_our_height := int64(0)
@@ -475,8 +475,8 @@ restart_loop:
 
 		if err == readline.ErrInterrupt {
 			if len(line) == 0 {
-				logger.Info("Ctrl-C received, Exit in progress")
-				return nil
+				logger.Info("Ctrl-C received, to exit type - exit")
+				// return nil
 			} else {
 				continue
 			}
@@ -1069,13 +1069,13 @@ restart_loop:
 				result, err := derodrpc.AddressToName(nil, rpc.AddressToName_Params{Address: line_parts[1], TopoHeight: -1})
 
 				if err == nil {
-					fmt.Printf("Address: %s has following names:\n", line_parts[1])
+					fmt.Printf("\nAddress: %s has following names:\n", line_parts[1])
 					for _, name := range result.Names {
 						fmt.Printf("\t%s\n", name)
 					}
 					fmt.Print("\n")
 				} else {
-					fmt.Printf("Something went wrong, could not look up name address: %s (%s)\n", line_parts[1], err.Error())
+					fmt.Printf("\nAddress: %s (%s)\n\n", line_parts[1], err.Error())
 				}
 			} else {
 				fmt.Printf("usage: address_to_name <wallet address>\n")
@@ -1197,8 +1197,22 @@ restart_loop:
 						p2p.Min_Peers = i
 						if p2p.Max_Peers < p2p.Min_Peers {
 							p2p.Max_Peers = p2p.Min_Peers
+							config.RunningConfig.Max_Peers = p2p.Max_Peers
 						}
 						config.RunningConfig.Min_Peers = p2p.Min_Peers
+
+					}
+				}
+				if line_parts[1] == "max_peers" && len(line_parts) == 3 {
+					i, err := strconv.ParseInt(line_parts[2], 10, 64)
+					if err != nil {
+						io.WriteString(l.Stderr(), "max peers need to be number\n")
+					} else {
+						p2p.Max_Peers = i
+						if p2p.Min_Peers > p2p.Max_Peers {
+							p2p.Min_Peers = p2p.Max_Peers
+							config.RunningConfig.Min_Peers = p2p.Min_Peers
+						}
 						config.RunningConfig.Max_Peers = p2p.Max_Peers
 					}
 				}
@@ -1288,13 +1302,14 @@ restart_loop:
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Operator Name", config.RunningConfig.OperatorName, "config operator <name>"))
 			whitelist_incoming := "YES"
 			if !config.RunningConfig.WhitelistIncoming {
-				whitelist_incoming = "no"
+				whitelist_incoming = "NO"
 			}
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Whitelist Incoming Peers", whitelist_incoming, "config whitelist_incoming"))
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Min Peers", p2p.Min_Peers, "config min_peers <num>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Max Peers", p2p.Max_Peers, "config max_peers <num>"))
 
-			turbo := "off"
+			turbo := "OFF"
 			if config.RunningConfig.P2PTurbo {
 				turbo = "ON"
 			}
@@ -1341,6 +1356,10 @@ restart_loop:
 				fmt.Printf("usage: remove_trusted <ip address>\n")
 			}
 
+		case command == "show_selfish":
+
+			p2p.Show_Selfish_Peers()
+
 		case command == "list_trusted":
 
 			p2p.Print_Trusted_Peers()
@@ -1371,10 +1390,6 @@ restart_loop:
 				fmt.Printf("usage: clear_peer_stats <ip address>\n")
 			}
 
-		case command == "list_all_connections": // print peer list
-
-			go p2p.ListAllConnections()
-
 		case command == "peer_list": // print peer list
 
 			limit := int64(25)
@@ -1392,7 +1407,10 @@ restart_loop:
 		case strings.ToLower(line) == "bye":
 			fallthrough
 		case strings.ToLower(line) == "exit":
-			fallthrough
+			close(Exit_In_Progress)
+
+			return nil
+
 		case strings.ToLower(line) == "quit":
 			close(Exit_In_Progress)
 			return nil
@@ -1705,6 +1723,7 @@ func usage(w io.Writer) {
 	io.WriteString(w, "\t\033[1morphaned_blocks\033[0m\tList Our Orphaned Blocks\n")
 	io.WriteString(w, "\t\033[1maddress_to_name\033[0m\tLookup registered names for Address\n")
 	io.WriteString(w, "\t\033[1mlist_all_connections\033[0m\tList All Connection\n")
+	io.WriteString(w, "\t\033[1mshow_selfish\033[0m\tShow Nodes that don't play nice\n")
 
 }
 
@@ -1755,6 +1774,7 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("orphaned_blocks"),
 	readline.PcItem("address_to_name"),
 	readline.PcItem("list_all_connections"),
+	readline.PcItem("show_selfish"),
 )
 
 func filterInput(r rune) (rune, bool) {

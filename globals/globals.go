@@ -68,6 +68,8 @@ var BlockPopCount int64
 
 var SeedHeight int64 = 0
 
+var BlocksMined int64
+
 // get current time with clock offset applied
 func Time() time.Time {
 	if TimeIsInSync {

@@ -3,10 +3,12 @@ package p2p
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/globals"
 )
 
 type BlockInsertCounter struct {
@@ -42,9 +44,19 @@ type PeerStats struct {
 	Collision_Errors []BlockCollisionError
 }
 
+type MyBlockReceivingError struct {
+	Block_Type    string
+	When          time.Time
+	Error_Message string
+}
+
 var Stats_mutex sync.Mutex
+
 var Pstat = make(map[string]PeerStats)
 var BlockInsertCount = make(map[string]BlockInsertCounter)
+
+var Selfish_mutex sync.Mutex
+var SelfishNodeStats = make(map[string][]MyBlockReceivingError)
 
 func LogAccept(Address string) {
 
@@ -100,17 +112,7 @@ func ClearAllStats() {
 
 func ClearPeerStats(Address string) {
 
-	peer_mutex.Lock()
-	defer peer_mutex.Unlock()
-
 	Address = ParseIPNoError(Address)
-
-	for _, p := range peer_map {
-		if Address == ParseIPNoError(p.Address) {
-			p.FailCount = 0
-			p.GoodCount = 0
-		}
-	}
 
 	Stats_mutex.Lock()
 	defer Stats_mutex.Unlock()
@@ -127,6 +129,91 @@ func ClearPeerStats(Address string) {
 		stat.Blocks_Rejected = 0
 		BlockInsertCount[Address] = stat
 	}
+}
+
+func SelfishNodeCounter(Address string, Block_Type string, PeerID uint64, Message string, BlockData []byte) {
+
+	Selfish_mutex.Lock()
+	defer Selfish_mutex.Unlock()
+
+	Address = ParseIPNoError(Address)
+
+	// If errors showing connection error, then log this so peer can get cleaned up
+	connection_down := regexp.MustCompile("^connection is shut down")
+	closed_pipe := regexp.MustCompile("io: read/write on closed pipe")
+
+	if !connection_down.Match([]byte(Message)) && !closed_pipe.Match([]byte(Message)) {
+
+		// Check if collision and if it's valid
+		//fmt.Errorf("collision %x", mbl.Serialize()), false
+		is_collision := regexp.MustCompile("^collision ")
+		if is_collision.Match([]byte(Message)) {
+
+			res := strings.TrimPrefix(Message, "collision ")
+
+			if res == fmt.Sprintf("%x", BlockData) {
+				logger.Info(fmt.Sprintf("Node (%s) replied with collision and it appears to be genuine", Address))
+			} else {
+				logger.Info(fmt.Sprintf("Selfish Node (%s) identified - replied with BAD collision message (%s) vs (%x)", Address, res, BlockData))
+			}
+		}
+		var Error MyBlockReceivingError
+
+		Error.Block_Type = Block_Type
+		Error.When = time.Now()
+		Error.Error_Message = Message
+
+		logs := SelfishNodeStats[Address]
+		logs = append(logs, Error)
+		SelfishNodeStats[Address] = logs
+
+	}
+
+}
+
+func GetPeerRBS(Address string) (Collisions uint64, CollisionRate float64, TIPFailCount uint64, TIPFailRate float64) {
+
+	Address = ParseIPNoError(Address)
+
+	Selfish_mutex.Lock()
+	defer Selfish_mutex.Unlock()
+
+	is_tip_issue := regexp.MustCompile("^tip could not be expanded")
+	is_collision := regexp.MustCompile("^collision ")
+
+	logs, x := SelfishNodeStats[Address]
+
+	Collisions = 0
+	TIPFailCount = 0
+
+	if x {
+		for _, log := range logs {
+
+			if is_collision.Match([]byte(log.Error_Message)) {
+				Collisions++
+			}
+			if is_tip_issue.Match([]byte(log.Error_Message)) {
+				TIPFailCount++
+			}
+		}
+	}
+
+	if globals.BlocksMined < 1 {
+		return Collisions, float64(0), TIPFailCount, float64(0)
+	}
+
+	CollisionRate = 0
+	TIPFailRate = 0
+
+	if Collisions >= 1 {
+		CollisionRate = float64((float64(Collisions) / float64(globals.BlocksMined)) * 100)
+	}
+
+	if TIPFailCount >= 1 {
+		TIPFailRate = float64((float64(TIPFailCount) / float64(globals.BlocksMined)) * 100)
+	}
+
+	return Collisions, CollisionRate, TIPFailCount, TIPFailRate
 }
 
 func PeerLogConnectionFail(Address string, Block_Type string, PeerID uint64, Message string) {
@@ -156,6 +243,8 @@ func PeerLogConnectionFail(Address string, Block_Type string, PeerID uint64, Mes
 
 		peer.Collision_Errors = stat
 
+		// check collision is genuine
+
 	} else {
 		// Log error
 
@@ -172,8 +261,16 @@ func PeerLogConnectionFail(Address string, Block_Type string, PeerID uint64, Mes
 		peer.Sending_Errors = stat
 	}
 
+	// If errors showing connection error, then log this so peer can get cleaned up
+	connection_down := regexp.MustCompile("^connection is shut down")
+	closed_pipe := regexp.MustCompile("io: read/write on closed pipe")
+
+	if connection_down.Match([]byte(Message)) || closed_pipe.Match([]byte(Message)) {
+		go Peer_SetFail(Address)
+	}
+
 	Pstat[Address] = peer
-	go Peer_SetFail(Address)
+
 	go logger.V(2).Info(fmt.Sprintf("Error (%s) - Logged for Connection: %s", Message, Address))
 
 }
@@ -221,7 +318,6 @@ func PeerLogReceiveFail(Address string, Block_Type string, PeerID uint64, Messag
 	}
 	Pstat[Address] = peer
 
-	go Peer_SetFail(Address)
 	go logger.V(2).Info(fmt.Sprintf("Error (%s) - Logged for Connection: %s", Message, Address))
 
 }

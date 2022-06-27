@@ -162,35 +162,34 @@ func ListAllConnections() {
 
 	var conn_count int = 0
 
-	var myconnections = make(map[string][]*Connection)
+	fmt.Print("\nConnections\n\n")
+	fmt.Printf("%-32s %-12s %-12s %-12s %-12s %-12s %-12s %-14s %-14s\n", "Address", "Since", "Last Update", "Latency", "BTS", "Good", "Fail", "Collision Rate", "Tip Fail Rate")
 
 	// Collect some connection stats
 	connection_map.Range(func(k, value interface{}) bool {
 		v := value.(*Connection)
 
-		myconnections[ParseIPNoError(v.Addr.String())] = append(myconnections[ParseIPNoError(v.Addr.String())], v)
+		_, _, _, BTS := GetPeerBTS(v.Addr.String())
+
+		Collisions, CollisionRate, TIPFailCount, TIPFailRate := GetPeerRBS(v.Addr.String())
+
+		CollisionText := fmt.Sprintf("%d (%.2f)", Collisions, CollisionRate)
+		TIPText := fmt.Sprintf("%d (%.2f)", TIPFailCount, TIPFailRate)
+
+		peer := GetPeerInList(v.Addr.String())
+
+		latency := time.Duration(v.Latency).Round(time.Millisecond).String()
+		created := time.Now().Sub(v.Created).Round(time.Second).String()
+		last_update := time.Now().Sub(v.update_received).Round(time.Second).String()
+
+		fmt.Printf("%-32s %-12s %-12s %-12s %-12.2f %-12d %-12d %-14s %-14s\n", v.Addr.String(), created, last_update, latency, BTS,
+			peer.GoodCount, peer.FailCount, CollisionText, TIPText)
 
 		conn_count++
 		return true
 	})
 
-	connection_map.Range(func(k, value interface{}) bool {
-		v := value.(*Connection)
-
-		_, x := myconnections[ParseIPNoError(v.Addr.String())]
-
-		if x {
-			for _, con := range myconnections[ParseIPNoError(v.Addr.String())] {
-				logger.Info(fmt.Sprintf("Connection (%s) added to %s, last update from peer was %s ago", con.Addr.String(), time.Now().Sub(con.Created).Round(time.Second).String(), time.Now().Sub(con.update_received).Round(time.Second).String()))
-
-			}
-
-		}
-
-		return true
-	})
-
-	logger.Info(fmt.Sprintf("Total Connections: %d (Unique: %d)", conn_count, len(myconnections)))
+	fmt.Printf("Total Connections: %d\n", conn_count)
 
 }
 
@@ -546,6 +545,7 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 					if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
 						go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Block_Coded", connection.Peer_ID, err.Error())
 						go LogReject(connection.Addr.String())
+
 						return
 					} else {
 						go LogAccept(connection.Addr.String())
@@ -614,6 +614,11 @@ func broadcast_Chunk(chunk *Block_Chunk, PeerID uint64, first_seen int64) { // i
 				if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
 					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
 					go LogReject(connection.Addr.String())
+
+					// if PeerID == GetPeerID() || PeerID == 0 {
+					// 	go SelfishNodeCounter(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
+					// }
+
 					return
 				} else {
 					go LogAccept(connection.Addr.String())
@@ -673,6 +678,11 @@ func broadcast_MiniBlock(mbl block.MiniBlock, PeerID uint64, first_seen int64) {
 				if err := connection.Client.Call("Peer.NotifyMiniBlock", peer_specific_block, &dummy); err != nil {
 					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_MiniBlock", connection.Peer_ID, err.Error())
 					go LogReject(connection.Addr.String())
+
+					if PeerID == GetPeerID() || PeerID == 0 {
+						go SelfishNodeCounter(connection.Addr.String(), "broadcast_MiniBlock", connection.Peer_ID, err.Error(), mbl.Serialize())
+					}
+
 					return
 				} else {
 					go LogAccept(connection.Addr.String())

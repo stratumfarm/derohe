@@ -459,6 +459,7 @@ func maintain_connection_to_peers() {
 				logger.Error(fmt.Errorf("--min-peers should be positive and more than 1"), "")
 			} else {
 				Min_Peers = i
+				config.RunningConfig.Min_Peers = Min_Peers
 			}
 		}
 		logger.Info("Min peers", "min-peers", Min_Peers)
@@ -473,6 +474,7 @@ func maintain_connection_to_peers() {
 				logger.Error(fmt.Errorf("--max-peers should be positive and more than --min-peers"), "")
 			} else {
 				Max_Peers = i
+				config.RunningConfig.Max_Peers = Max_Peers
 			}
 		}
 		logger.Info("Max peers", "max-peers", Max_Peers)
