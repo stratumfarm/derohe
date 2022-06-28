@@ -10,7 +10,7 @@ require (
 	github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984
 	github.com/cespare/xxhash v1.1.0
 	github.com/chzyer/readline v1.5.0
-	github.com/creachadair/jrpc2 v0.36.0
+	github.com/creachadair/jrpc2 v0.41.0
 	github.com/dchest/siphash v1.2.3
 	github.com/deroproject/graviton v0.0.0-20220130070622-2c248a53b2e1
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
