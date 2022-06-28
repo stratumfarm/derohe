@@ -330,8 +330,10 @@ func onWebsocket(w http.ResponseWriter, r *http.Request) {
 			if time.Now().Sub(t.timestamp) < ban_time {
 				logger_getwork.V(1).Info("Banned miner", "Address", i, "Info", "Ban still active")
 				conn.Close()
+				break
 			} else {
 				delete(ban_list, i)
+				break
 			}
 		}
 	}
