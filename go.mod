@@ -23,7 +23,7 @@ require (
 	github.com/klauspost/reedsolomon v1.9.16
 	github.com/lesismal/llib v1.1.6
 	github.com/lesismal/nbio v1.2.20
-	github.com/miekg/dns v1.1.49
+	github.com/miekg/dns v1.1.50
 	github.com/minio/sha256-simd v1.0.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
