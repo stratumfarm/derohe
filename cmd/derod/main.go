@@ -32,6 +32,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -154,11 +155,21 @@ func dump(filename string) {
 	}
 }
 
+var threadStartCount int
+var mutexStartCount int
+var blockingStartCount int
+var goStartCount int
+
 func main() {
 
 	runtime.MemProfileRate = 0
 	var err error
 	globals.Arguments, err = docopt.Parse(command_line, nil, true, config.Version.String(), false)
+
+	threadStartCount = globals.CountThreads()
+	mutexStartCount = globals.CountMutex()
+	blockingStartCount = globals.CountBlocked()
+	goStartCount = globals.CountGoProcs()
 
 	if err != nil {
 		fmt.Printf("Error while parsing options err: %s\n", err)
@@ -942,6 +953,10 @@ restart_loop:
 			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String())
 			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
 
+			fmt.Printf("DERO Daemon - Threads [%d/%d] - Mutex [%d/%d] - Blocked [%d/%d] - GO Procs [%d/%d]\n",
+				threadStartCount, globals.CountThreads(), mutexStartCount, globals.CountMutex(),
+				blockingStartCount, globals.CountBlocked(), goStartCount, globals.CountGoProcs())
+
 			fmt.Printf("Network %s Height %d  NW Hashrate %0.03f MH/sec  Peers %d inc, %d out  MEMPOOL size %d REGPOOL %d  Total Supply %s DERO \n", globals.Config.Name, chain.Get_Height(), float64(chain.Get_Network_HashRate())/1000000.0, inc, out, mempool_tx_count, regpool_tx_count, globals.FormatMoney(supply))
 
 			tips := chain.Get_TIPS()
@@ -979,8 +994,19 @@ restart_loop:
 			fmt.Print("\nMining Stats:\n")
 			fmt.Printf("\tBlock Minted: %d (MB+IB)\n", blocksMinted)
 			if blocksMinted > 0 {
-				fmt.Printf("\tMinting Velocity: %.4f MB/h\t%.4f MB/d (since uptime)\n", float64(float64(blocksMinted)/time.Now().Sub(globals.StartTime).Seconds())*3600,
-					float64(float64(blocksMinted)/time.Now().Sub(globals.StartTime).Seconds())*3600*24)
+
+				velocity_1h := float64(float64(blocksMinted)/time.Now().Sub(globals.StartTime).Seconds()) * 3600
+				if velocity_1h > float64(blocksMinted) {
+					velocity_1h = float64(blocksMinted)
+				}
+
+				velocity_1d := float64(float64(blocksMinted)/time.Now().Sub(globals.StartTime).Seconds()) * 3600 * 24
+				if velocity_1d > float64(blocksMinted) {
+					velocity_1d = float64(blocksMinted)
+				}
+
+				fmt.Printf("\tMinting Velocity: %.4f MB/h\t%.4f MB/d (since uptime)\n", velocity_1h, velocity_1d)
+
 			} else {
 				fmt.Print("\tMinting Velocity: 0.0000 MB/h\t0.0000MB/d (since uptime)\n")
 			}
@@ -1080,6 +1106,117 @@ restart_loop:
 			} else {
 				fmt.Printf("usage: address_to_name <wallet address>\n")
 			}
+
+		case command == "list_active_miner_nodes":
+
+			miner_stats := p2p.GetMiniBlockNodeStats(uint64(chain.Get_Height()))
+
+			for miner := range miner_stats {
+				fmt.Printf("Node: %s - Blocks: %d\n", miner, miner_stats[miner])
+			}
+
+			fmt.Printf("Total Active Miner(s): %d\n", len(miner_stats))
+
+		case command == "list_active_miners":
+
+			var MinerStats = make(map[string]map[string]int)
+			miniblocks := p2p.GetMiniBlocksFromHeight(uint64(chain.Get_Height()))
+			finalblocks := p2p.GetFinalBlocksFromHeight(uint64(chain.Get_Height()))
+
+			if toporecord, err1 := chain.Store.Topo_store.Read(chain.Get_Height()); err1 == nil { // we must now fill in compressed ring members
+				if ss, err1 := chain.Store.Balance_store.LoadSnapshot(toporecord.State_Version); err1 == nil {
+					if balance_tree, err1 := ss.GetTree(config.BALANCE_TREE); err1 == nil {
+						for hash, mbl := range miniblocks {
+							bits, key, _, err1 := balance_tree.GetKeyValueFromHash(mbl.KeyHash[0:16])
+							if err1 != nil || bits >= 120 {
+								continue
+							}
+							if addr, err1 := rpc.NewAddressFromCompressedKeys(key); err1 == nil {
+
+								stat, found := MinerStats[addr.String()]
+
+								if !found {
+									stat = make(map[string]int)
+								}
+
+								stat["miniblocks"]++
+								stat["total"]++
+
+								miner_node := p2p.GetNodeFromMiniHash(hash)
+								stat[miner_node]++
+
+								MinerStats[addr.String()] = stat
+
+							}
+						}
+
+						for hash, bl := range finalblocks {
+
+							if addr, err1 := rpc.NewAddressFromCompressedKeys(bl.Miner_TX.MinerAddress[:]); err1 == nil {
+
+								stat, found := MinerStats[addr.String()]
+
+								if !found {
+									stat = make(map[string]int)
+								}
+
+								stat["finalblocks"]++
+								stat["total"]++
+
+								miner_node := p2p.GetNodeFromMiniHash(hash)
+								stat[miner_node]++
+
+								MinerStats[addr.String()] = stat
+
+							}
+						}
+
+					}
+
+				}
+
+			}
+			var ordered_minder []string
+
+			for wallet, _ := range MinerStats {
+				ordered_minder = append(ordered_minder, wallet)
+			}
+
+			sort.SliceStable(ordered_minder, func(i, j int) bool {
+				return MinerStats[ordered_minder[i]]["total"] > MinerStats[ordered_minder[j]]["total"]
+			})
+
+			fmt.Printf("Network Mining Stats - Last %d Blocks - Showing top 25\n", len(finalblocks))
+
+			fmt.Printf("%-76s %-16s %-16s %-24s %-24s\n", "Miner", "IB", "MB", "Dominance", "Node")
+
+			var count int = 0
+			for _, miner := range ordered_minder {
+				if count >= 25 {
+					break
+				}
+				// fmt.Printf("Miner: %s\n\tMini Blocks: %d\n", miner, MinerStats[miner]["miniblocks"])
+
+				node_max := 0
+				node := ""
+				for key, stat := range MinerStats[miner] {
+					if key == "miniblocks" || key == "finalblocks" || key == "total" {
+						continue
+					}
+					if stat > node_max {
+						node_max = stat
+						node = key
+					}
+				}
+
+				dominance := fmt.Sprintf("%.02f", (float64(MinerStats[miner]["total"])/1000)*100)
+
+				fmt.Printf("%-76s %-16d %-16d %-24s %-24s\n", miner, MinerStats[miner]["finalblocks"], MinerStats[miner]["miniblocks"], dominance, node)
+				count++
+
+			}
+
+			fmt.Printf("Total Active Miner(s): %d\n", len(MinerStats))
 
 		case command == "connecto_to_peer":
 
@@ -1769,6 +1906,8 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("connect_to_peer"),
 	readline.PcItem("connect_to_seeds"),
 	readline.PcItem("list_miners"),
+	readline.PcItem("list_active_miners"),
+	readline.PcItem("list_active_miner_nodes"),
 	readline.PcItem("miner_info"),
 	readline.PcItem("mined_blocks"),
 	readline.PcItem("orphaned_blocks"),

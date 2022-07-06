@@ -27,6 +27,7 @@ import (
 
 	"path/filepath"
 	"runtime/debug"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -69,6 +70,27 @@ var BlockPopCount int64
 var SeedHeight int64 = 0
 
 var BlocksMined int64
+
+var threadProfile = pprof.Lookup("threadcreate")
+var mutexProfile = pprof.Lookup("mutex")
+var blockingProfile = pprof.Lookup("block")
+var goProfile = pprof.Lookup("goroutine")
+
+func CountThreads() int {
+	return threadProfile.Count()
+}
+
+func CountMutex() int {
+	return mutexProfile.Count()
+}
+
+func CountBlocked() int {
+	return blockingProfile.Count()
+}
+
+func CountGoProcs() int {
+	return goProfile.Count()
+}
 
 // get current time with clock offset applied
 func Time() time.Time {

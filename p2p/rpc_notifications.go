@@ -131,6 +131,7 @@ func (c *Connection) NotifyMiniBlock(request Objects, response *Dummy) (err erro
 			return err
 		}
 		mbls = append(mbls, mbl)
+		go LogMiniblock(mbl, c.Addr.String())
 	}
 
 	var valid_found bool
@@ -220,6 +221,7 @@ func (c *Connection) processChunkedBlock(request Objects, data_shard_count, pari
 	}
 
 	blid := bl.GetHash()
+	go LogFinalBlock(bl, c.Addr.String())
 
 	// object is already is in our chain, we need not relay it
 	if chain.Is_Block_Topological_order(blid) || chain.Is_Block_Tip(blid) {

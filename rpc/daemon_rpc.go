@@ -334,6 +334,10 @@ type (
 		Minting_Velocity_1hr  float64 `json:"minting_velocity_1hr"`
 		Minting_Velocity_1day float64 `json:"minting_velocity_1day"`
 		Uptime                uint64  `json:"uptime"`
+		CountThreads          int     `json:"count_threads"`
+		CountBlocked          int     `json:"count_blocked"`
+		CountMutex            int     `json:"count_mutex"`
+		CountGoProcs          int     `json:"count_goprocs"`
 
 		HashrateEstimatePercent_1hr  uint64 `json:"hashrate_1hr"`
 		HashrateEstimatePercent_1day uint64 `json:"hashrate_1d"`

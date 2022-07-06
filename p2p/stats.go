@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/deroproject/derohe/block"
 	"github.com/deroproject/derohe/config"
 	"github.com/deroproject/derohe/globals"
 )
@@ -50,6 +51,20 @@ type MyBlockReceivingError struct {
 	Error_Message string
 }
 
+type MiniBlockLog struct {
+	Miniblock   block.MiniBlock
+	NodeAddress string
+}
+
+var MiniblockLogs = make(map[string]MiniBlockLog)
+
+type FinalBlockLog struct {
+	Block       block.Block
+	NodeAddress string
+}
+
+var FinalBlockLogs = make(map[string]FinalBlockLog)
+
 var Stats_mutex sync.Mutex
 
 var Pstat = make(map[string]PeerStats)
@@ -57,6 +72,128 @@ var BlockInsertCount = make(map[string]BlockInsertCounter)
 
 var Selfish_mutex sync.Mutex
 var SelfishNodeStats = make(map[string][]MyBlockReceivingError)
+
+var log_miniblock_mutex sync.Mutex
+
+func GetNodeFromMiniHash(hash string) (Address string) {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	for block_hash, block := range MiniblockLogs {
+
+		if hash == block_hash {
+			return block.NodeAddress
+		}
+	}
+
+	for block_hash, block := range FinalBlockLogs {
+
+		if hash == block_hash {
+			return block.NodeAddress
+		}
+	}
+
+	return Address
+}
+
+func GetFinalBlocksFromHeight(height uint64) map[string]block.Block {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var Blocks = make(map[string]block.Block)
+
+	for hash, block := range FinalBlockLogs {
+		if block.Block.Height+100 >= height {
+			Blocks[hash] = block.Block
+		} else {
+			delete(FinalBlockLogs, hash)
+		}
+	}
+
+	return Blocks
+
+}
+
+func GetMiniBlocksFromHeight(height uint64) map[string]block.MiniBlock {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var Blocks = make(map[string]block.MiniBlock)
+
+	for hash, block := range MiniblockLogs {
+		if block.Miniblock.Height+99 > height {
+			Blocks[hash] = block.Miniblock
+		} else {
+			delete(MiniblockLogs, hash)
+		}
+	}
+
+	return Blocks
+
+}
+
+func GetMiniBlockNodeStats(height uint64) map[string]int {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var BlocksPerAddress = make(map[string]int)
+
+	for _, block := range MiniblockLogs {
+		if block.Miniblock.Height+99 > height {
+			BlocksPerAddress[block.NodeAddress]++
+		}
+	}
+
+	return BlocksPerAddress
+}
+
+func LogFinalBlock(bl block.Block, Address string) {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	BlockHash := fmt.Sprintf("%s", bl.GetHash())
+	Address = ParseIPNoError(Address)
+
+	stat, found := FinalBlockLogs[BlockHash]
+
+	if !found {
+		stat.Block = bl
+		stat.NodeAddress = Address
+	} else {
+		if bl.Timestamp < stat.Block.Timestamp {
+			stat.NodeAddress = Address
+		}
+	}
+
+	FinalBlockLogs[BlockHash] = stat
+}
+
+func LogMiniblock(mbl block.MiniBlock, Address string) {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	MiniblockHash := fmt.Sprintf("%s", mbl.GetHash())
+	Address = ParseIPNoError(Address)
+
+	stat, found := MiniblockLogs[MiniblockHash]
+
+	if !found {
+		stat.Miniblock = mbl
+		stat.NodeAddress = Address
+	} else {
+		if mbl.Timestamp < stat.Miniblock.Timestamp {
+			stat.NodeAddress = Address
+		}
+	}
+
+	MiniblockLogs[MiniblockHash] = stat
+}
 
 func LogAccept(Address string) {
 
@@ -86,6 +223,8 @@ func LogReject(Address string) {
 
 func ClearAllStats() {
 
+	go ClearPstat()
+
 	peer_mutex.Lock()
 	defer peer_mutex.Unlock()
 
@@ -94,6 +233,9 @@ func ClearAllStats() {
 		p.GoodCount = 0
 	}
 
+}
+
+func ClearPstat() {
 	Stats_mutex.Lock()
 	defer Stats_mutex.Unlock()
 
@@ -108,6 +250,20 @@ func ClearAllStats() {
 		stat.Blocks_Rejected = 0
 		BlockInsertCount[Address] = stat
 	}
+}
+
+func PstatCount() (total_peer_sending_error_count int, total_peer_receiving_error_count int, collision_count int) {
+
+	Stats_mutex.Lock()
+	defer Stats_mutex.Unlock()
+
+	for _, ps := range Pstat {
+		total_peer_sending_error_count += len(ps.Sending_Errors)
+		total_peer_receiving_error_count += len(ps.Receiving_Errors)
+		collision_count += len(ps.Collision_Errors)
+	}
+
+	return total_peer_sending_error_count, total_peer_receiving_error_count, collision_count
 }
 
 func ClearPeerStats(Address string) {

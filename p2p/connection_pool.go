@@ -121,13 +121,10 @@ func Address(c *Connection) string {
 func (c *Connection) exit() {
 	defer globals.Recover(0)
 	c.onceexit.Do(func() {
-		errClient := c.Client.Close()
-		if errClient == nil {
-			errTls := c.ConnTls.Close()
-			if errTls == nil {
-				c.Conn.Close()
-			}
-		}
+		c.Client.Close()
+		c.ConnTls.Close()
+		c.Conn.Close()
+
 	})
 
 }
@@ -156,41 +153,6 @@ func Connection_Delete(c *Connection) {
 		}
 		return true
 	})
-}
-
-func ListAllConnections() {
-
-	var conn_count int = 0
-
-	fmt.Print("\nConnections\n\n")
-	fmt.Printf("%-32s %-12s %-12s %-12s %-12s %-12s %-12s %-14s %-14s\n", "Address", "Since", "Last Update", "Latency", "BTS", "Good", "Fail", "Collision Rate", "Tip Fail Rate")
-
-	// Collect some connection stats
-	connection_map.Range(func(k, value interface{}) bool {
-		v := value.(*Connection)
-
-		_, _, _, BTS := GetPeerBTS(v.Addr.String())
-
-		Collisions, CollisionRate, TIPFailCount, TIPFailRate := GetPeerRBS(v.Addr.String())
-
-		CollisionText := fmt.Sprintf("%d (%.2f)", Collisions, CollisionRate)
-		TIPText := fmt.Sprintf("%d (%.2f)", TIPFailCount, TIPFailRate)
-
-		peer := GetPeerInList(v.Addr.String())
-
-		latency := time.Duration(v.Latency).Round(time.Millisecond).String()
-		created := time.Now().Sub(v.Created).Round(time.Second).String()
-		last_update := time.Now().Sub(v.update_received).Round(time.Second).String()
-
-		fmt.Printf("%-32s %-12s %-12s %-12s %-12.2f %-12d %-12d %-14s %-14s\n", v.Addr.String(), created, last_update, latency, BTS,
-			peer.GoodCount, peer.FailCount, CollisionText, TIPText)
-
-		conn_count++
-		return true
-	})
-
-	fmt.Printf("Total Connections: %d\n", conn_count)
-
 }
 
 func Connection_Pending_Clear() {

@@ -322,14 +322,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 		}
 	}
 
-	var total_peer_sending_error_count int = 0
-	var total_peer_receiving_error_count int = 0
-	var collision_count int = 0
-	for _, ps := range p2p.Pstat {
-		total_peer_sending_error_count += len(ps.Sending_Errors)
-		total_peer_receiving_error_count += len(ps.Receiving_Errors)
-		collision_count += len(ps.Collision_Errors)
-	}
+	total_peer_sending_error_count, total_peer_receiving_error_count, collision_count := p2p.PstatCount()
 
 	io.WriteString(w, "\n\n*** Captain, our diagnostic report ****\n\n")
 
