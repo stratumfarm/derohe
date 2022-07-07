@@ -82,7 +82,9 @@ func shouldwebackoff(ip string) bool {
 		}
 	}
 
-	if backoff[ip] != 0 { // now lets do the test
+	_, backoff_ip := backoff[ip]
+
+	if backoff_ip { // now lets do the test
 		return true
 	}
 	return false
@@ -496,8 +498,8 @@ func maintain_connection_to_peers() {
 
 		// check number of connections, if limit is reached, trigger new connections if we have peers
 		// if we have more do nothing
-		_, out := Peer_Direction_Count()
-		if out >= uint64(Min_Peers) { // we already have required number of peers, donot connect to more peers
+		in, out := Peer_Direction_Count()
+		if out+in >= uint64(Max_Peers) { // we already have required number of peers, donot connect to more peers
 			continue
 		}
 
@@ -604,7 +606,7 @@ func P2P_Server_v2() {
 		raddr := conn.RemoteAddr().(*net.UDPAddr)
 
 		backoff_mutex.Lock()
-		backoff[ParseIPNoError(raddr.String())] = time.Now().Unix() + globals.Global_Random.Int63n(200) // random backing of upto 200 secs
+		backoff[ParseIPNoError(raddr.String())] = time.Now().Unix() + 10
 		backoff_mutex.Unlock()
 
 		logger.V(3).Info("accepting incoming connection", "raddr", raddr.String())

@@ -236,7 +236,7 @@ func ShowMinerInfo(wallet string) {
 
 	UpdateMinerStats()
 
-	fmt.Print("Miner Info\n\n")
+	fmt.Print("Local Miner Info\n\n")
 
 	miner_stats_mutex.Lock()
 	defer miner_stats_mutex.Unlock()

@@ -247,6 +247,7 @@ try_again:
 		failcount := 0
 		for i := range response.Block_list {
 			our_topo_order := chain.Load_Block_Topological_order(response.Block_list[i])
+
 			if our_topo_order != (int64(i)+response.Start_topoheight) || our_topo_order == -1 { // if block is not in our chain, add it to request list
 				if failcount < 4 {
 					if _, ok := chain.Add_Complete_Block(ramstore.check(response.Block_list[i])); !ok {
@@ -268,6 +269,7 @@ try_again:
 	connection.logger.V(2).Info("response block list", "count", len(response.Block_list))
 	for i := range response.Block_list {
 		our_topo_order := chain.Load_Block_Topological_order(response.Block_list[i])
+
 		if our_topo_order != (int64(i)+response.Start_topoheight) || our_topo_order == -1 { // if block is not in our chain, add it to request list
 			//queue_block(request.Block_list[i])
 			if max_blocks_to_queue >= 0 {
@@ -340,6 +342,8 @@ func (connection *Connection) process_object_response(response Objects, sent int
 			continue
 		}
 		// check whether the object was requested one
+
+		go LogFinalBlock(bl, connection.Addr.String())
 
 		// complete the txs
 		for j := range response.CBlocks[i].Txs {

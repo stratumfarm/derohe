@@ -145,9 +145,74 @@ func GetInfo(ctx context.Context) (result rpc.GetInfo_Result, err error) {
 	result.CountMutex = globals.CountMutex()
 	result.CountGoProcs = globals.CountGoProcs()
 
+	MinerStats, _, _ := GetMinerStats(chain)
+	result.NetworkActiveMiners = len(MinerStats)
+
 	result.HashrateEstimatePercent_1hr = uint64((float64(chain.Get_Network_HashRate()) * HashrateEstimatePercent_1hr()) / 100)
 	result.HashrateEstimatePercent_1day = uint64((float64(chain.Get_Network_HashRate()) * HashrateEstimatePercent_1day()) / 100)
 	result.HashrateEstimatePercent_7day = uint64((float64(chain.Get_Network_HashRate()) * HashrateEstimatePercent_7day()) / 100)
 
 	return result, nil
+}
+
+func GetMinerStats(chain *blockchain.Blockchain) (map[string]map[string]int, map[string]block.Block, map[string]block.MiniBlock) {
+
+	var MinerStats = make(map[string]map[string]int)
+	miniblocks := p2p.GetMiniBlocksFromHeight(uint64(chain.Get_Height()))
+	finalblocks := p2p.GetFinalBlocksFromHeight(uint64(chain.Get_Height()))
+
+	if toporecord, err1 := chain.Store.Topo_store.Read(chain.Get_Height()); err1 == nil { // we must now fill in compressed ring members
+		if ss, err1 := chain.Store.Balance_store.LoadSnapshot(toporecord.State_Version); err1 == nil {
+			if balance_tree, err1 := ss.GetTree(config.BALANCE_TREE); err1 == nil {
+				for hash, mbl := range miniblocks {
+					bits, key, _, err1 := balance_tree.GetKeyValueFromHash(mbl.KeyHash[0:16])
+					if err1 != nil || bits >= 120 {
+						continue
+					}
+					if addr, err1 := rpc.NewAddressFromCompressedKeys(key); err1 == nil {
+
+						stat, found := MinerStats[addr.String()]
+
+						if !found {
+							stat = make(map[string]int)
+						}
+
+						stat["miniblocks"]++
+						stat["total"]++
+
+						miner_node := p2p.GetNodeFromMiniHash(hash)
+						stat[miner_node]++
+
+						MinerStats[addr.String()] = stat
+
+					}
+				}
+
+				for hash, bl := range finalblocks {
+
+					if addr, err1 := rpc.NewAddressFromCompressedKeys(bl.Miner_TX.MinerAddress[:]); err1 == nil {
+
+						stat, found := MinerStats[addr.String()]
+
+						if !found {
+							stat = make(map[string]int)
+						}
+
+						stat["finalblocks"]++
+						stat["total"]++
+
+						miner_node := p2p.GetNodeFromMiniHash(hash)
+						stat[miner_node]++
+
+						MinerStats[addr.String()] = stat
+
+					}
+				}
+
+			}
+
+		}
+
+	}
+	return MinerStats, finalblocks, miniblocks
 }

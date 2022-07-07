@@ -81,8 +81,13 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	// }
 
 	var old_debug_level = config.RunningConfig.LogLevel
-	io.WriteString(w, "\n* Diagnostics Sequence Initiated ... \n\n")
 	ToggleDebug(l, 0)
+
+	if old_debug_level > 0 {
+		time.Sleep(3 * time.Second)
+	}
+
+	io.WriteString(w, "\n* Diagnostics Sequence Initiated ... \n\n")
 	logger.Info("", "OS", runtime.GOOS, "ARCH", runtime.GOARCH, "GOMAXPROCS", runtime.GOMAXPROCS(0))
 	logger.Info("", "Version", config.Version.String())
 

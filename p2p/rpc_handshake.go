@@ -109,7 +109,7 @@ func (connection *Connection) dispatch_test_handshake() {
 
 	// TODO we must also add the peer to our list
 	// which can be distributed to other peers
-	if connection.Port != 0 && connection.Port <= 65535 { // peer is saying it has an open port, handshake is success so add peer
+	if connection.Port >= 1 && connection.Port <= 65535 { // peer is saying it has an open port, handshake is success so add peer
 
 		var p Peer
 		if net.ParseIP(Address(connection)).To4() != nil { // if ipv4
@@ -127,7 +127,7 @@ func (connection *Connection) dispatch_test_handshake() {
 	// parse delivered peer list as grey list
 	connection.logger.V(4).Info("Peer provides peers", "count", len(response.PeerList))
 	for i := range response.PeerList {
-		if i < 13 {
+		if i < int(Max_Peers) {
 			Peer_Add(&Peer{Address: response.PeerList[i].Addr, LastConnected: uint64(time.Now().UTC().Unix())})
 		}
 	}
@@ -165,7 +165,7 @@ func (c *Connection) Handshake(request Handshake_Struct, response *Handshake_Str
 	c.update(&request.Common) // update common information
 	if c.State == ACTIVE {
 		for i := range request.PeerList {
-			if i < 31 {
+			if i < int(Max_Peers) {
 				Peer_Add(&Peer{Address: request.PeerList[i].Addr, LastConnected: uint64(time.Now().UTC().Unix())})
 			}
 		}

@@ -162,15 +162,13 @@ func LogFinalBlock(bl block.Block, Address string) {
 	stat, found := FinalBlockLogs[BlockHash]
 
 	if !found {
+
 		stat.Block = bl
 		stat.NodeAddress = Address
-	} else {
-		if bl.Timestamp < stat.Block.Timestamp {
-			stat.NodeAddress = Address
-		}
+
+		FinalBlockLogs[BlockHash] = stat
 	}
 
-	FinalBlockLogs[BlockHash] = stat
 }
 
 func LogMiniblock(mbl block.MiniBlock, Address string) {
@@ -184,15 +182,14 @@ func LogMiniblock(mbl block.MiniBlock, Address string) {
 	stat, found := MiniblockLogs[MiniblockHash]
 
 	if !found {
+
 		stat.Miniblock = mbl
 		stat.NodeAddress = Address
-	} else {
-		if mbl.Timestamp < stat.Miniblock.Timestamp {
-			stat.NodeAddress = Address
-		}
+
+		MiniblockLogs[MiniblockHash] = stat
+
 	}
 
-	MiniblockLogs[MiniblockHash] = stat
 }
 
 func LogAccept(Address string) {
@@ -307,9 +304,7 @@ func SelfishNodeCounter(Address string, Block_Type string, PeerID uint64, Messag
 
 			res := strings.TrimPrefix(Message, "collision ")
 
-			if res == fmt.Sprintf("%x", BlockData) {
-				logger.Info(fmt.Sprintf("Node (%s) replied with collision and it appears to be genuine", Address))
-			} else {
+			if res != fmt.Sprintf("%x", BlockData) {
 				logger.Info(fmt.Sprintf("Selfish Node (%s) identified - replied with BAD collision message (%s) vs (%x)", Address, res, BlockData))
 			}
 		}
