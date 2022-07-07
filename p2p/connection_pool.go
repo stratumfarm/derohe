@@ -108,6 +108,7 @@ type Connection struct {
 }
 
 func ConnecToNode(address string) {
+
 	go connect_with_endpoint(address, false)
 }
 
@@ -147,6 +148,7 @@ func Connection_Delete(c *Connection) {
 
 		// Clear all connection to same IP
 		if c.Addr.String() == v.Addr.String() {
+			c.exit()
 			// if ParseIPNoError(c.Addr.String()) == ParseIPNoError(v.Addr.String()) {
 			connection_map.Delete(Address(v))
 			return false

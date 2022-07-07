@@ -476,6 +476,24 @@ func Peer_Whitelist_Counts() (Count uint64) {
 	return uint64(count)
 }
 
+func DisconnectAddress(address string) {
+	p := GetPeerInList(ParseIPNoError(address))
+	if p == nil {
+		return
+	}
+
+	logger.Info(fmt.Sprintf("Disconnecting Peer: %s", address))
+	for _, conn := range UniqueConnections() {
+		if ParseIPNoError(conn.Addr.String()) == ParseIPNoError(address) {
+			logger.V(1).Info(fmt.Sprintf("Disconnecting: %s", conn.Addr.String()))
+			go Connection_Delete(conn)
+		}
+	}
+
+	go Peer_Delete(p)
+
+}
+
 // a peer marked as fail, will only be connected  based on exponential back-off based on powers of 2
 func Peer_SetFail(address string) {
 	p := GetPeerInList(ParseIPNoError(address))

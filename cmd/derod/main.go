@@ -1051,6 +1051,7 @@ restart_loop:
 
 			fmt.Print("\nPeer Stats:\n")
 			fmt.Printf("\tPeer ID: %d\n", p2p.GetPeerID())
+			fmt.Printf("\tNode Tag: %s\n", p2p.GetNodeTag())
 
 			blocksMinted := (derodrpc.CountMinisAccepted + derodrpc.CountBlocks)
 			fmt.Print("\nMining Stats:\n")
@@ -1265,13 +1266,24 @@ restart_loop:
 
 			fmt.Printf("Total Active Miner(s): %d\n", len(MinerStats))
 
-		case command == "connecto_to_peer":
+		case command == "connect_to_peer":
 
 			if len(line_parts) == 2 {
+				logger.Info(fmt.Sprintf("Connecting to: %s", line_parts[1]))
+
 				address := line_parts[1]
 				p2p.ConnecToNode(address)
 			} else {
-				fmt.Printf("usage: connecto_to_peer <ip address:port>\n")
+				fmt.Printf("usage: connect_to_peer <ip address:port>\n")
+			}
+
+		case command == "disconnect_peer":
+
+			if len(line_parts) == 2 {
+				address := line_parts[1]
+				p2p.DisconnectAddress(address)
+			} else {
+				fmt.Printf("usage: disconnect_peer <ip address>\n")
 			}
 
 		case command == "miner_info":
@@ -1530,6 +1542,16 @@ restart_loop:
 				if line_parts[1] == "operator" && len(line_parts) == 3 {
 					config.RunningConfig.OperatorName = line_parts[2]
 				}
+				if line_parts[1] == "node_tag" {
+					new_tag := ""
+					for i := 2; i < len(line_parts); i++ {
+						new_tag = fmt.Sprintf("%s %s", new_tag, line_parts[i])
+					}
+
+					new_tag = strings.TrimLeft(new_tag, " ")
+					new_tag = strings.TrimRight(new_tag, " ")
+					p2p.SetNodeTag(new_tag)
+				}
 				save_config_file()
 			}
 
@@ -1542,6 +1564,8 @@ restart_loop:
 				whitelist_incoming = "NO"
 			}
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Whitelist Incoming Peers", whitelist_incoming, "config whitelist_incoming"))
+
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "P2P Node Tag", p2p.GetNodeTag(), "config node_tag <Tag or none to remove>"))
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Min Peers", p2p.Min_Peers, "config min_peers <num>"))
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Max Peers", p2p.Max_Peers, "config max_peers <num>"))
@@ -1769,16 +1793,6 @@ restart_loop:
 				fmt.Printf("unbann %s successful", line_parts[1])
 			}
 
-		case command == "connect_to_peer":
-
-			if len(line_parts) == 2 {
-
-				logger.Info(fmt.Sprintf("Connecting to: %s", line_parts[1]))
-				go p2p.ConnecToNode(line_parts[1])
-			} else {
-				fmt.Printf("usage: clear_peer_stats <ip address>\n")
-			}
-
 		case command == "connect_to_seeds":
 			for _, ip := range config.Mainnet_seed_nodes {
 				logger.Info(fmt.Sprintf("Connecting to: %s", ip))
@@ -1954,6 +1968,7 @@ func usage(w io.Writer) {
 	io.WriteString(w, "\t\033[1mconnect_to_hansen\033[0m\tConnect to Hansen nodes\n")
 	io.WriteString(w, "\t\033[1mconnect_to_seeds\033[0m\tConnect to all seed nodes (see status in list_trusted)\n")
 	io.WriteString(w, "\t\033[1mconnect_to_peer\033[0m\tConnect to any peer using - connect_to_peer <ip:p2p-port>\n")
+	io.WriteString(w, "\t\033[1mdisconnect_peer\033[0m\tConnect to any peer using - disconnect_peer <ip>\n")
 	io.WriteString(w, "\t\033[1mlist_miners\033[0m\tShow Connected Miners\n")
 	io.WriteString(w, "\t\033[1mminer_info\033[0m\tDetailed miner info - miner_info <wallet>\n")
 	io.WriteString(w, "\t\033[1mmined_blocks\033[0m\tList Mined Blocks\n")
@@ -2004,6 +2019,7 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("remove_trusted"),
 	readline.PcItem("list_trusted"),
 	readline.PcItem("connect_to_peer"),
+	readline.PcItem("disconnect_peer"),
 	readline.PcItem("connect_to_seeds"),
 	readline.PcItem("list_miners"),
 	readline.PcItem("active_miners"),
