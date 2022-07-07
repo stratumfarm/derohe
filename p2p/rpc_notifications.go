@@ -131,6 +131,8 @@ func (c *Connection) NotifyMiniBlock(request Objects, response *Dummy) (err erro
 			return err
 		}
 		mbls = append(mbls, mbl)
+
+		// logger.Info(fmt.Sprintf("Time: %-10d Hash: %s", mbl.Timestamp, mbl.GetHash()))
 		go LogMiniblock(mbl, c.Addr.String())
 	}
 

@@ -101,7 +101,7 @@ func P2P_Init(params map[string]interface{}) error {
 	// parse node tag if availble
 	if _, ok := globals.Arguments["--node-tag"]; ok {
 		if globals.Arguments["--node-tag"] != nil {
-			node_tag = globals.Arguments["--node-tag"].(string)
+			SetNodeTag(globals.Arguments["--node-tag"].(string))
 		}
 	}
 	if os.Getenv("TURBO") == "0" {

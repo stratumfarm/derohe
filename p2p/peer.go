@@ -22,6 +22,8 @@ package p2p
 import (
 	"crypto/rand"
 	"encoding/binary"
+
+	"github.com/deroproject/derohe/config"
 )
 
 //import "path/filepath"
@@ -54,6 +56,7 @@ func GetPeerID() uint64 {
 
 func SetNodeTag(new_tag string) {
 	node_tag = new_tag
+	config.RunningConfig.NodeTag = node_tag
 }
 
 func GetNodeTag() string {

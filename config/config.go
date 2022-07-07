@@ -155,6 +155,7 @@ type RUN_CONFIG struct {
 	Max_Peers              int64
 	BlockedVersions        []string
 	ErrorLogExpirySeconds  int64
+	NodeTag                string
 }
 
 var RunningConfig = RUN_CONFIG{

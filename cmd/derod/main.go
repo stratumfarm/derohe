@@ -122,7 +122,7 @@ func load_config_file() {
 	}
 	file, err := os.Open(config_file)
 	if err != nil {
-		logger.Error(err, "opening peer file")
+		logger.Error(err, "opening config file")
 	} else {
 		defer file.Close()
 		decoder := json.NewDecoder(file)
@@ -132,8 +132,14 @@ func load_config_file() {
 		} else { // successfully loaded
 			logger.V(1).Info("Successfully loaded config from file")
 
+			// Set additional running variables based on config
+
 			p2p.Min_Peers = config.RunningConfig.Min_Peers
 			p2p.Max_Peers = config.RunningConfig.Max_Peers
+
+			if len(config.RunningConfig.NodeTag) > 0 {
+				p2p.SetNodeTag(config.RunningConfig.NodeTag)
+			}
 		}
 	}
 
