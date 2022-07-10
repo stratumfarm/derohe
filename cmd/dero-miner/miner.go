@@ -59,6 +59,7 @@ var daemon_rpc_address string
 
 var counter uint64
 var hash_rate uint64
+var mining_speed float64
 var Difficulty uint64
 var our_height int64
 
@@ -66,8 +67,9 @@ var block_counter uint64
 var mini_block_counter uint64
 var rejected uint64
 var logger logr.Logger
-
 var miner_started = time.Now().Unix()
+
+var miner_tag string
 
 var command_line string = `dero-miner
 DERO CPU Miner for AstroBWT.
@@ -75,7 +77,7 @@ ONE CPU, ONE VOTE.
 http://wiki.dero.io
 
 Usage:
-  dero-miner  --wallet-address=<wallet_address> [--daemon-rpc-address=<minernode1.dero.live:10100>] [--mining-threads=<threads>] [--testnet] [--debug]
+  dero-miner  --wallet-address=<wallet_address> [--daemon-rpc-address=<minernode1.dero.live:10100>] [--mining-threads=<threads>] [--testnet] [--debug] [--tag=<tag>]
   dero-miner --bench 
   dero-miner -h | --help
   dero-miner --version
@@ -87,6 +89,7 @@ Options:
   --daemon-rpc-address=<127.0.0.1:10102>    Miner will connect to daemon RPC on this port (default minernode1.dero.live:10100).
   --wallet-address=<wallet_address>    This address is rewarded when a block is mined sucessfully.
   --mining-threads=<threads>         Number of CPU threads for mining [default: ` + fmt.Sprintf("%d", runtime.GOMAXPROCS(0)) + `]
+  --tag=<tag>
 
 Example Mainnet: ./dero-miner-linux-amd64 --wallet-address dero1qy0ehnqjpr0wxqnknyc66du2fsxyktppkr8m8e6jvplp954klfjz2qqhmy4zf --daemon-rpc-address=minernode1.dero.live:10100
 Example Testnet: ./dero-miner-linux-amd64 --wallet-address deto1qy0ehnqjpr0wxqnknyc66du2fsxyktppkr8m8e6jvplp954klfjz2qqdzcd8p --daemon-rpc-address=127.0.0.1:40402 
@@ -157,6 +160,10 @@ func main() {
 		daemon_rpc_address = "minernode1.dero.live:10100"
 	} else {
 		daemon_rpc_address = "127.0.0.1:10100"
+	}
+
+	if globals.Arguments["--tag"] != nil {
+		miner_tag = globals.Arguments["--tag"].(string)
 	}
 
 	if globals.Arguments["--daemon-rpc-address"] != nil {
@@ -245,7 +252,7 @@ func main() {
 				mining_string := ""
 
 				if mining {
-					mining_speed := float64(counter-last_counter) / (float64(uint64(time.Since(last_counter_time))) / 1000000000.0)
+					mining_speed = float64(counter-last_counter) / (float64(uint64(time.Since(last_counter_time))) / 1000000000.0)
 					last_counter = counter
 					last_counter_time = time.Now()
 					switch {
@@ -309,6 +316,8 @@ func main() {
 	}
 
 	go getwork(wallet_address)
+
+	go SendMinerUpdateToNode(wallet_address)
 
 	for i := 0; i < threads; i++ {
 		go mineblock(i)
@@ -443,6 +452,23 @@ func getwork(wallet_address string) {
 		goto wait_for_another_job
 	}
 
+}
+
+func SendMinerUpdateToNode(wallet_address string) {
+
+	for {
+
+		logger.Info("Sending Miner Update to node")
+
+		func() {
+			defer globals.Recover(1)
+			connection_mutex.Lock()
+			defer connection_mutex.Unlock()
+			connection.WriteJSON(rpc.MinerInfo_Params{Wallet_Address: wallet_address, Miner_Tag: miner_tag, Miner_Hashrate: mining_speed})
+		}()
+
+		time.Sleep(10 * time.Second)
+	}
 }
 
 func mineblock(tid int) {

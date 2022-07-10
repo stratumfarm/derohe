@@ -438,6 +438,13 @@ func newUpgrader() *websocket.Upgrader {
 		if err := json.Unmarshal(data, &p); err != nil {
 
 		}
+		var x rpc.MinerInfo_Params
+
+		if err := json.Unmarshal(data, &x); err == nil {
+			logger.V(1).Info(fmt.Sprintf("IP: %-22s Speed: %-8f Tag: %-22s Miner: %s", c.RemoteAddr().String(), x.Miner_Hashrate, x.Miner_Tag, x.Wallet_Address))
+
+			return
+		}
 
 		mbl_block_data_bytes, err := hex.DecodeString(p.MiniBlockhashing_blob)
 		if err != nil {

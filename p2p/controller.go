@@ -512,7 +512,7 @@ func maintain_connection_to_peers() {
 
 func P2P_Server_v2() {
 
-	var accept_limiter = rate.NewLimiter(10.0, 40) // 10 incoming per sec, burst of 40 is okay
+	var accept_limiter = rate.NewLimiter(100.0, 40) // 10 incoming per sec, burst of 40 is okay
 
 	default_address := "0.0.0.0:0" // be default choose a random port
 	if _, ok := globals.Arguments["--p2p-bind"]; ok && globals.Arguments["--p2p-bind"] != nil {
@@ -614,10 +614,12 @@ func P2P_Server_v2() {
 		if IsAddressConnected(ParseIPNoError(raddr.String())) {
 			logger.V(4).Info("incoming address is already connected", "ip", raddr.String())
 			conn.Close()
+			continue
 
 		} else if IsAddressInBanList(ParseIPNoError(raddr.IP.String())) { //if incoming IP is banned, disconnect now
 			logger.V(2).Info("Incoming IP is banned, disconnecting now", "IP", raddr.IP.String())
 			conn.Close()
+			continue
 		}
 
 		tunekcp(conn) // tuning paramters for local stack

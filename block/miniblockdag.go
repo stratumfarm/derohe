@@ -85,6 +85,16 @@ func BlockRateCount(height int64) (int, int, float64, int) {
 	return len(OrphanMiniCounterMap), len(MiniBlockCounterMap), orphan_rate, len(OrphanMiniCounter100)
 }
 
+func IsBlockOrphan(block_hash string) bool {
+
+	_, x := OrphanMiniCounter100[block_hash]
+	if x {
+		return true
+	}
+
+	return false
+}
+
 // purge all heights less than this height
 func (c *MiniBlocksCollection) PurgeHeight(minis []MiniBlock, height int64) (purge_count int) {
 	if height < 0 {

@@ -335,6 +335,7 @@ func main() {
 	globals.Cron.Start() // start cron jobs
 
 	globals.Cron.AddFunc("@every 10s", derodrpc.UpdateMinerStats)
+	globals.Cron.AddFunc("@every 10s", p2p.UpdateOrphanCount)
 	// This tiny goroutine continuously updates status as required
 	go func() {
 		last_our_height := int64(0)
@@ -470,68 +471,6 @@ func main() {
 		logger.Info("Exit in Progress, Please wait.", "active subsystems", globals.Subsystem_Active)
 		time.Sleep(1000 * time.Millisecond)
 	}
-}
-
-func GetMinerStats(chain *blockchain.Blockchain) (map[string]map[string]int, map[string]block.Block, map[string]block.MiniBlock) {
-
-	var MinerStats = make(map[string]map[string]int)
-	miniblocks := p2p.GetMiniBlocksFromHeight(uint64(chain.Get_Height()))
-	finalblocks := p2p.GetFinalBlocksFromHeight(uint64(chain.Get_Height()))
-
-	if toporecord, err1 := chain.Store.Topo_store.Read(chain.Get_Height()); err1 == nil { // we must now fill in compressed ring members
-		if ss, err1 := chain.Store.Balance_store.LoadSnapshot(toporecord.State_Version); err1 == nil {
-			if balance_tree, err1 := ss.GetTree(config.BALANCE_TREE); err1 == nil {
-				for hash, mbl := range miniblocks {
-					bits, key, _, err1 := balance_tree.GetKeyValueFromHash(mbl.KeyHash[0:16])
-					if err1 != nil || bits >= 120 {
-						continue
-					}
-					if addr, err1 := rpc.NewAddressFromCompressedKeys(key); err1 == nil {
-
-						stat, found := MinerStats[addr.String()]
-
-						if !found {
-							stat = make(map[string]int)
-						}
-
-						stat["miniblocks"]++
-						stat["total"]++
-
-						miner_node := p2p.GetNodeFromMiniHash(hash)
-						stat[miner_node]++
-
-						MinerStats[addr.String()] = stat
-
-					}
-				}
-
-				for hash, bl := range finalblocks {
-
-					if addr, err1 := rpc.NewAddressFromCompressedKeys(bl.Miner_TX.MinerAddress[:]); err1 == nil {
-
-						stat, found := MinerStats[addr.String()]
-
-						if !found {
-							stat = make(map[string]int)
-						}
-
-						stat["finalblocks"]++
-						stat["total"]++
-
-						miner_node := p2p.GetNodeFromMiniHash(hash)
-						stat[miner_node]++
-
-						MinerStats[addr.String()] = stat
-
-					}
-				}
-
-			}
-
-		}
-
-	}
-	return MinerStats, finalblocks, miniblocks
 }
 
 func readline_loop(l *readline.Instance, chain *blockchain.Blockchain, logger logr.Logger) (err error) {
@@ -1178,18 +1117,17 @@ restart_loop:
 
 		case command == "active_nodes":
 
-			_, finalblocks, _ := GetMinerStats(chain)
-
-			miner_stats := p2p.GetMiniBlockNodeStats(uint64(chain.Get_Height()))
+			active_nodes := p2p.GetActiveNodesFromHeight(chain.Get_Height() - 100)
 
 			var ordered_nodes []string
 
-			for node, _ := range miner_stats {
+			for node, _ := range active_nodes {
+
 				ordered_nodes = append(ordered_nodes, node)
 			}
 
 			sort.SliceStable(ordered_nodes, func(i, j int) bool {
-				return miner_stats[ordered_nodes[i]] > miner_stats[ordered_nodes[j]]
+				return active_nodes[ordered_nodes[i]]["total"] > active_nodes[ordered_nodes[j]]["total"]
 			})
 
 			show_count := 25
@@ -1202,31 +1140,43 @@ restart_loop:
 					show_count = int(i)
 				}
 			}
-			fmt.Printf("Network Mining Node Stats - Last %d Blocks - Showing max %d nodes\n\n", len(finalblocks), show_count)
 
+			if show_count > len(active_nodes) {
+				show_count = len(active_nodes)
+			}
+
+			fmt.Printf("Network Mining Node Stats - Last 100 Blocks - Showing %d/%d nodes\n\n", show_count, len(active_nodes))
+			fmt.Printf("%-30s %-8s %-8s %-8s %-14s %-16s\n", "Node IP", "IB", "MB", "MBO", "Orphan Loss", "Dominance")
+
+			total_blocks := float64(len(p2p.MiniblockLogs) + len(p2p.FinalBlockLogs))
 			count := 0
 			for _, node := range ordered_nodes {
 				if count >= show_count {
 					break
 				}
-				fmt.Printf("Peer IP: %-30s Block(s): %d\n", node, miner_stats[node])
+
+				node_total_blocks := float64(active_nodes[node]["finals"] + active_nodes[node]["minis"])
+				dominance := fmt.Sprintf("%.2f%%", ((node_total_blocks / total_blocks) * 100))
+				orphan_loss := fmt.Sprintf("%.2f%%", (float64(active_nodes[node]["orphans"]) / float64(active_nodes[node]["total"]) * 100))
+				fmt.Printf("%-30s %-8d %-8d %-8d %-14s %-16s\n", node, active_nodes[node]["finals"], active_nodes[node]["minis"], active_nodes[node]["orphans"], orphan_loss, dominance)
 				count++
 			}
 
-			fmt.Printf("Total Active Miner Node(s): %d\n\n", len(miner_stats))
+			fmt.Printf("\nTotal Active Miner Node(s): %d\n", len(active_nodes))
 
 		case command == "active_miners":
 
-			MinerStats, finalblocks, _ := GetMinerStats(chain)
+			active_miners := p2p.GetActiveMinersFromHeight(chain.Get_Height() - 100)
 
 			var ordered_minder []string
 
-			for wallet, _ := range MinerStats {
-				ordered_minder = append(ordered_minder, wallet)
+			for node, _ := range active_miners {
+
+				ordered_minder = append(ordered_minder, node)
 			}
 
 			sort.SliceStable(ordered_minder, func(i, j int) bool {
-				return MinerStats[ordered_minder[i]]["total"] > MinerStats[ordered_minder[j]]["total"]
+				return active_miners[ordered_minder[i]]["total"] > active_miners[ordered_minder[j]]["total"]
 			})
 
 			show_count := 25
@@ -1240,37 +1190,33 @@ restart_loop:
 				}
 			}
 
-			fmt.Printf("Network Mining Stats - Last %d Blocks - Showing max %d miners\n\n", len(finalblocks), show_count)
+			if show_count > len(active_miners) {
+				show_count = len(active_miners)
+			}
 
-			fmt.Printf("%-76s %-16s %-16s %-24s %-24s\n", "Miner Address", "IB", "MB", "Dominance", "Node")
+			fmt.Printf("Network Mining Stats - Last 100 Blocks - Showing %d/%d miners\n\n", show_count, len(active_miners))
+
+			fmt.Printf("%-76s %-8s %-8s %-8s %-14s %-16s %-26s\n", "Miner Address", "IB", "MB", "MBO", "Orphan Loss", "Dominance", "Node (Probability)")
 
 			var count int = 0
 			for _, miner := range ordered_minder {
 				if count >= show_count {
 					break
 				}
-				// fmt.Printf("Miner: %s\n\tMini Blocks: %d\n", miner, MinerStats[miner]["miniblocks"])
 
-				node_max := 0
-				node := ""
-				for key, stat := range MinerStats[miner] {
-					if key == "miniblocks" || key == "finalblocks" || key == "total" {
-						continue
-					}
-					if stat > node_max {
-						node_max = stat
-						node = key
-					}
-				}
+				dominance := fmt.Sprintf("%.02f%%", (float64(active_miners[miner]["total"])/1000)*100)
+				node, probabiliy := p2p.BestGuessMinerNodeHeight((chain.Get_Height() - 100), miner)
 
-				dominance := fmt.Sprintf("%.02f", (float64(MinerStats[miner]["total"])/1000)*100)
+				orphan_loss := float64(float64(active_miners[miner]["orphans"]) / float64(active_miners[miner]["total"]) * 100)
 
-				fmt.Printf("%-76s %-16d %-16d %-24s %-24s\n", miner, MinerStats[miner]["finalblocks"], MinerStats[miner]["miniblocks"], dominance, node)
+				node_string := fmt.Sprintf("%-16s (%.2f%%)", node, probabiliy)
+				orphan_string := fmt.Sprintf("%.2f%%", orphan_loss)
+				fmt.Printf("%-76s %-8d %-8d %-8d %-14s %-16s %-26s\n", miner, active_miners[miner]["finals"], active_miners[miner]["minis"], active_miners[miner]["orphans"], orphan_string, dominance, node_string)
 				count++
 
 			}
 
-			fmt.Printf("Total Active Miner(s): %d\n", len(MinerStats))
+			fmt.Printf("\nTotal Active Miner(s): %d\n", len(active_miners))
 
 		case command == "connect_to_peer":
 
@@ -1296,25 +1242,28 @@ restart_loop:
 
 			if len(line_parts) == 2 {
 
-				MinerStats, finalblocks, _ := GetMinerStats(chain)
+				active_miners := p2p.GetActiveMinersFromHeight(chain.Get_Height() - 100)
 
-				fmt.Printf("Network Mining Stats - Last %d Blocks\n\n", len(finalblocks))
-				for miner, _ := range MinerStats {
+				fmt.Printf("Network Mining Stats Since (%d) Last 100 Blocks\n\n", (chain.Get_Height() - 100))
+				for miner, _ := range active_miners {
 					if miner != line_parts[1] {
 						continue
 					}
 
 					fmt.Printf("%-76s %-16s %-16s %-24s\n", "Miner", "IB", "MB", "Dominance")
-					dominance := fmt.Sprintf("%.02f", (float64(MinerStats[miner]["total"])/1000)*100)
+					dominance := fmt.Sprintf("%.02f", (float64(active_miners[miner]["total"])/1000)*100)
 
-					fmt.Printf("%-76s %-16d %-16d %-24s\n", miner, MinerStats[miner]["finalblocks"], MinerStats[miner]["miniblocks"], dominance)
+					orphan_loss := float64(float64(active_miners[miner]["orphans"]) / float64(active_miners[miner]["total"]) * 100)
+					orphan_string := fmt.Sprintf("%.2f%%", orphan_loss)
 
+					fmt.Printf("%-76s %-16d %-16d %-24s\n", miner, active_miners[miner]["finals"], active_miners[miner]["minis"], dominance)
+
+					ordered_nodes, data := p2p.PotentialMinerNodeHeight((chain.Get_Height() - 100), miner)
 					fmt.Print("\nPotential Miner Nodes:\n")
-					for key, stat := range MinerStats[miner] {
-						if key == "miniblocks" || key == "finalblocks" || key == "total" {
-							continue
-						}
-						fmt.Printf("\tNode: %-32s Blocks: %d\n", key, stat)
+					fmt.Printf("%-24s %-8s %-8s %-8s %-14s %-16s\n", "Node", "IB", "MB", "MBO", "Orphan Loss", "Probability")
+
+					for _, node := range ordered_nodes {
+						fmt.Printf("%-24s %-8d %-8d %-8d %-14s %.2f%%\n", node, int(data[node]["finals"]), int(data[node]["minis"]), int(data[node]["orphans"]), orphan_string, data[node]["likelyhood"])
 					}
 
 				}
@@ -1389,34 +1338,30 @@ restart_loop:
 			var error_peer string
 
 			if len(line_parts) == 2 {
-				error_peer = line_parts[1]
+				error_peer = p2p.ParseIPNoError(line_parts[1])
 				p2p.Print_Peer_Info(error_peer)
 
-				MinerStats, finalblocks, _ := GetMinerStats(chain)
+				integrators, integrator_data := p2p.PotentialNodeIntegratorsFromHeight(chain.Get_Height()-100, error_peer)
 
-				var ordered_minder []string
+				fmt.Printf("\nPotential Integrators - Last 100 Blocks\n\n")
 
-				for wallet, _ := range MinerStats {
-					ordered_minder = append(ordered_minder, wallet)
+				fmt.Printf("%-76s %-16s %-24s\n", "Miner Address", "IB", "% of Total")
+
+				for _, miner := range integrators {
+
+					fmt.Printf("%-76s %-16d %0.2f%%\n", miner, int(integrator_data[miner]["finals"]), integrator_data[miner]["likelyhood"])
+
 				}
 
-				sort.SliceStable(ordered_minder, func(i, j int) bool {
-					return MinerStats[ordered_minder[i]]["total"] > MinerStats[ordered_minder[j]]["total"]
-				})
+				ordered_miner, data := p2p.PotentialMinersOnNodeFromHeight(chain.Get_Height()-100, error_peer)
 
-				fmt.Printf("Peer First to Transmit Block(s) for Miners below - Last %d Blocks\n\n", len(finalblocks))
+				fmt.Printf("\nPotential Miners - Last 100 Blocks\n\n")
 
-				fmt.Printf("%-76s %-16s %-24s\n", "Miner Address", "Blocks", "Off Total")
+				fmt.Printf("%-76s %-16s %-16s %-16s %-24s\n", "Miner Address", "IB", "MB", "MBO", "% of Total")
 
-				for _, miner := range ordered_minder {
+				for _, miner := range ordered_miner {
 
-					_, found := MinerStats[miner][error_peer]
-					if found {
-
-						of_total := fmt.Sprintf("%.02f%%", (float64(MinerStats[miner][error_peer])/float64(MinerStats[miner]["total"]))*100)
-
-						fmt.Printf("%-76s %-16d %-24s\n", miner, MinerStats[miner][error_peer], of_total)
-					}
+					fmt.Printf("%-76s %-16d %-16d %-16d %0.2f%%\n", miner, int(data[miner]["finals"]), int(data[miner]["minis"]), int(data[miner]["orphans"]), data[miner]["likelyhood"])
 
 				}
 				fmt.Print("\n")

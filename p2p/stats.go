@@ -3,13 +3,16 @@ package p2p
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/blockchain"
 	"github.com/deroproject/derohe/config"
 	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/rpc"
 )
 
 type BlockInsertCounter struct {
@@ -54,6 +57,8 @@ type MyBlockReceivingError struct {
 type MiniBlockLog struct {
 	Miniblock   block.MiniBlock
 	NodeAddress string
+	MinerWallet string
+	IsOrphan    bool
 }
 
 var MiniblockLogs = make(map[string]MiniBlockLog)
@@ -61,6 +66,8 @@ var MiniblockLogs = make(map[string]MiniBlockLog)
 type FinalBlockLog struct {
 	Block       block.Block
 	NodeAddress string
+	MinerWallet string
+	IsOrphan    bool
 }
 
 var FinalBlockLogs = make(map[string]FinalBlockLog)
@@ -74,6 +81,47 @@ var Selfish_mutex sync.Mutex
 var SelfishNodeStats = make(map[string][]MyBlockReceivingError)
 
 var log_miniblock_mutex sync.Mutex
+
+func GetMinerAddressFromKeyHash(chain *blockchain.Blockchain, mbl block.MiniBlock) string {
+
+	if toporecord, err1 := chain.Store.Topo_store.Read(chain.Get_Height()); err1 == nil { // we must now fill in compressed ring members
+		if ss, err1 := chain.Store.Balance_store.LoadSnapshot(toporecord.State_Version); err1 == nil {
+			if balance_tree, err1 := ss.GetTree(config.BALANCE_TREE); err1 == nil {
+				bits, key, _, err1 := balance_tree.GetKeyValueFromHash(mbl.KeyHash[0:16])
+				if err1 != nil || bits >= 120 {
+					return ""
+				}
+				if addr, err1 := rpc.NewAddressFromCompressedKeys(key); err1 == nil {
+					return addr.String()
+				}
+
+			}
+		}
+	}
+
+	return ""
+}
+
+func GetActiveMinersCountFromHeight(height int64) (unique_miner_count int) {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var unique_miners map[string]int
+	for _, block := range MiniblockLogs {
+		if block.Miniblock.Height >= uint64(height) {
+			unique_miners[block.MinerWallet]++
+		}
+	}
+
+	for _, block := range FinalBlockLogs {
+		if block.Block.Height >= uint64(height) {
+			unique_miners[block.MinerWallet]++
+		}
+	}
+
+	return len(unique_miners)
+}
 
 func GetNodeFromMiniHash(hash string) (Address string) {
 
@@ -97,58 +145,389 @@ func GetNodeFromMiniHash(hash string) (Address string) {
 	return Address
 }
 
-func GetFinalBlocksFromHeight(height uint64) map[string]block.Block {
-
+func PotentialNodeIntegratorsFromHeight(height int64, Address string) ([]string, map[string]map[string]float64) {
 	log_miniblock_mutex.Lock()
 	defer log_miniblock_mutex.Unlock()
 
-	var Blocks = make(map[string]block.Block)
+	var NodeWallets = make(map[string]int)
+	var WalletTotals = make(map[string]int)
+	var Nodes = make(map[string]int)
+	var Finals = make(map[string]int)
 
-	for hash, block := range FinalBlockLogs {
-		if block.Block.Height+100 >= height {
-			Blocks[hash] = block.Block
-		} else {
-			delete(FinalBlockLogs, hash)
+	for _, block := range FinalBlockLogs {
+		if block.Block.Height >= uint64(height) {
+			WalletTotals[block.MinerWallet]++
+			if block.NodeAddress == Address {
+				NodeWallets[block.MinerWallet]++
+				Nodes[block.NodeAddress]++
+				Finals[block.MinerWallet]++
+			}
 		}
 	}
 
-	return Blocks
+	var ordered_miners []string
+	var likelyhood_score = make(map[string]float64)
+	for wallet, _ := range NodeWallets {
+		ordered_miners = append(ordered_miners, wallet)
+		likelyhood_score[wallet] = float64(float64(NodeWallets[wallet]) / float64(WalletTotals[wallet]) * 100)
+	}
 
+	sort.SliceStable(ordered_miners, func(i, j int) bool {
+		return likelyhood_score[ordered_miners[i]] > likelyhood_score[ordered_miners[j]]
+	})
+
+	var data = make(map[string]map[string]float64)
+
+	for wallet := range likelyhood_score {
+
+		_, found := data[wallet]
+		if !found {
+			data[wallet] = make(map[string]float64)
+		}
+
+		d := data[wallet]
+		d["likelyhood"] = likelyhood_score[wallet]
+		d["finals"] = float64(Finals[wallet])
+
+		data[wallet] = d
+	}
+
+	return ordered_miners, data
 }
 
-func GetMiniBlocksFromHeight(height uint64) map[string]block.MiniBlock {
-
+func PotentialMinersOnNodeFromHeight(height int64, Address string) ([]string, map[string]map[string]float64) {
 	log_miniblock_mutex.Lock()
 	defer log_miniblock_mutex.Unlock()
 
-	var Blocks = make(map[string]block.MiniBlock)
+	var NodeWallets = make(map[string]int)
+	var WalletTotals = make(map[string]int)
+	var Nodes = make(map[string]int)
+	var Minis = make(map[string]int)
+	var Finals = make(map[string]int)
+	var Orphans = make(map[string]int)
 
-	for hash, block := range MiniblockLogs {
-		if block.Miniblock.Height+99 > height {
-			Blocks[hash] = block.Miniblock
-		} else {
-			delete(MiniblockLogs, hash)
+	for _, bl := range FinalBlockLogs {
+		if bl.Block.Height >= uint64(height) {
+			WalletTotals[bl.MinerWallet]++
+			if bl.NodeAddress == Address {
+				NodeWallets[bl.MinerWallet]++
+				Nodes[bl.NodeAddress]++
+				Finals[bl.MinerWallet]++
+				if bl.IsOrphan {
+					Orphans[bl.MinerWallet]++
+				}
+			}
 		}
 	}
 
-	return Blocks
+	for _, mbl := range MiniblockLogs {
+		if mbl.Miniblock.Height >= uint64(height) {
+			WalletTotals[mbl.MinerWallet]++
+			if mbl.NodeAddress == Address {
+				NodeWallets[mbl.MinerWallet]++
+				Nodes[mbl.NodeAddress]++
+				Minis[mbl.MinerWallet]++
+				if mbl.IsOrphan {
+					Orphans[mbl.MinerWallet]++
+				}
+			}
+		}
+	}
 
+	var ordered_miners []string
+	var likelyhood_score = make(map[string]float64)
+	for wallet, _ := range NodeWallets {
+		ordered_miners = append(ordered_miners, wallet)
+		likelyhood_score[wallet] = float64(float64(NodeWallets[wallet]) / float64(WalletTotals[wallet]) * 100)
+	}
+
+	sort.SliceStable(ordered_miners, func(i, j int) bool {
+		return likelyhood_score[ordered_miners[i]] > likelyhood_score[ordered_miners[j]]
+	})
+
+	var data = make(map[string]map[string]float64)
+
+	for wallet := range likelyhood_score {
+
+		_, found := data[wallet]
+		if !found {
+			data[wallet] = make(map[string]float64)
+		}
+
+		d := data[wallet]
+		d["likelyhood"] = likelyhood_score[wallet]
+		d["minis"] = float64(Minis[wallet])
+		d["finals"] = float64(Finals[wallet])
+		d["orphans"] = float64(Orphans[wallet])
+
+		data[wallet] = d
+	}
+
+	return ordered_miners, data
 }
 
-func GetMiniBlockNodeStats(height uint64) map[string]int {
+func UpdateOrphanCount() {
 
 	log_miniblock_mutex.Lock()
 	defer log_miniblock_mutex.Unlock()
 
-	var BlocksPerAddress = make(map[string]int)
+	for key, mbl := range MiniblockLogs {
+
+		if mbl.Miniblock.Height+101 < uint64(chain.Get_Height()) {
+			delete(MiniblockLogs, key)
+			continue
+		}
+
+		if block.IsBlockOrphan(mbl.Miniblock.GetHash().String()) {
+			mbl.IsOrphan = true
+		} else {
+			mbl.IsOrphan = false
+		}
+		MiniblockLogs[key] = mbl
+	}
+
+	for key, bl := range FinalBlockLogs {
+
+		if bl.Block.Height+101 < uint64(chain.Get_Height()) {
+			delete(FinalBlockLogs, key)
+			continue
+		}
+
+		if block.IsBlockOrphan(bl.Block.GetHash().String()) {
+			bl.IsOrphan = true
+		} else {
+			bl.IsOrphan = false
+		}
+		FinalBlockLogs[key] = bl
+
+	}
+
+}
+
+func PotentialMinerNodeHeight(height int64, Wallet string) ([]string, map[string]map[string]float64) {
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var Wallets = make(map[string]int)
+	var Nodes = make(map[string]int)
+	var Minis = make(map[string]int)
+	var Finals = make(map[string]int)
+	var Orphans = make(map[string]int)
+
+	for _, bl := range FinalBlockLogs {
+		if bl.Block.Height >= uint64(height) && bl.MinerWallet == Wallet {
+			Nodes[bl.NodeAddress]++
+			Wallets[bl.MinerWallet]++
+			Finals[bl.NodeAddress]++
+			if bl.IsOrphan {
+				Orphans[bl.NodeAddress]++
+			}
+		}
+	}
+
+	for _, mbl := range MiniblockLogs {
+		if mbl.Miniblock.Height >= uint64(height) && mbl.MinerWallet == Wallet {
+			Wallets[mbl.MinerWallet]++
+			Nodes[mbl.NodeAddress]++
+			Minis[mbl.NodeAddress]++
+			if mbl.IsOrphan {
+				Orphans[mbl.NodeAddress]++
+			}
+
+		}
+	}
+
+	var ordered_nodes []string
+	var likelyhood_score = make(map[string]float64)
+	for node, _ := range Nodes {
+		ordered_nodes = append(ordered_nodes, node)
+		likelyhood_score[node] = float64(float64(Nodes[node]) / float64(Wallets[Wallet]) * 100)
+	}
+
+	sort.SliceStable(ordered_nodes, func(i, j int) bool {
+		return likelyhood_score[ordered_nodes[i]] > likelyhood_score[ordered_nodes[j]]
+	})
+
+	var data = make(map[string]map[string]float64)
+
+	for node := range likelyhood_score {
+
+		_, found := data[node]
+		if !found {
+			data[node] = make(map[string]float64)
+		}
+
+		d := data[node]
+		d["likelyhood"] = likelyhood_score[node]
+		d["minis"] = float64(Minis[node])
+		d["finals"] = float64(Finals[node])
+		d["orphans"] = float64(Orphans[node])
+
+		data[node] = d
+	}
+
+	return ordered_nodes, data
+}
+
+func BestGuessMinerNodeHeight(height int64, Wallet string) (string, float64) {
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var Nodes = make(map[string]int)
+	var Total = make(map[string]int)
+
+	for _, block := range FinalBlockLogs {
+
+		if block.Block.Height >= uint64(height) && block.MinerWallet == Wallet {
+			Total[block.MinerWallet]++
+			Nodes[block.NodeAddress]++
+		}
+	}
 
 	for _, block := range MiniblockLogs {
-		if block.Miniblock.Height+99 > height {
-			BlocksPerAddress[block.NodeAddress]++
+		if block.Miniblock.Height >= uint64(height) && block.MinerWallet == Wallet {
+			Total[block.MinerWallet]++
+			Nodes[block.NodeAddress]++
 		}
 	}
 
-	return BlocksPerAddress
+	var ordered_nodes []string
+	for node, _ := range Nodes {
+		ordered_nodes = append(ordered_nodes, node)
+	}
+
+	sort.SliceStable(ordered_nodes, func(i, j int) bool {
+		return Nodes[ordered_nodes[i]] > Nodes[ordered_nodes[j]]
+	})
+
+	probability := float64(float64(Nodes[ordered_nodes[0]])/float64(Total[Wallet])) * 100
+
+	return ordered_nodes[0], probability
+}
+
+func GetActiveMinersFromHeight(height int64) map[string]map[string]int {
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var ActiveMiners = make(map[string]map[string]int)
+
+	for _, bl := range FinalBlockLogs {
+		if bl.Block.Height >= uint64(height) {
+			_, found := ActiveMiners[bl.MinerWallet]
+			if !found {
+				ActiveMiners[bl.MinerWallet] = make(map[string]int)
+			}
+			stat, _ := ActiveMiners[bl.MinerWallet]
+
+			stat["finals"]++
+			stat["total"]++
+
+			if bl.IsOrphan {
+				stat["orphans"]++
+			}
+			ActiveMiners[bl.MinerWallet] = stat
+		}
+	}
+
+	for _, mbl := range MiniblockLogs {
+		if mbl.Miniblock.Height >= uint64(height) {
+			_, found := ActiveMiners[mbl.MinerWallet]
+			if !found {
+				ActiveMiners[mbl.MinerWallet] = make(map[string]int)
+			}
+			stat, _ := ActiveMiners[mbl.MinerWallet]
+
+			stat["minis"]++
+			stat["total"]++
+
+			if mbl.IsOrphan {
+				stat["orphans"]++
+			}
+
+			ActiveMiners[mbl.MinerWallet] = stat
+		}
+	}
+
+	return ActiveMiners
+}
+
+func GetActiveNodesFromHeight(height int64) map[string]map[string]int {
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var ActiveNodes = make(map[string]map[string]int)
+	for _, bl := range FinalBlockLogs {
+		if bl.Block.Height >= uint64(height) {
+
+			_, found := ActiveNodes[bl.NodeAddress]
+			if !found {
+
+				ActiveNodes[bl.NodeAddress] = make(map[string]int)
+			}
+
+			stat := ActiveNodes[bl.NodeAddress]
+			stat["finals"]++
+			stat["total"]++
+			if bl.IsOrphan {
+				stat["orphans"]++
+			}
+			ActiveNodes[bl.NodeAddress] = stat
+		}
+	}
+
+	for _, mbl := range MiniblockLogs {
+		if mbl.Miniblock.Height >= uint64(height) {
+
+			_, found := ActiveNodes[mbl.NodeAddress]
+			if !found {
+				ActiveNodes[mbl.NodeAddress] = make(map[string]int)
+			}
+
+			stat := ActiveNodes[mbl.NodeAddress]
+			stat["minis"]++
+			stat["total"]++
+			if mbl.IsOrphan {
+				stat["orphans"]++
+			}
+			ActiveNodes[mbl.NodeAddress] = stat
+		}
+	}
+
+	return ActiveNodes
+}
+
+func GetFinalBlocksFromHeight(height uint64) map[string]FinalBlockLog {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var Blocks = make(map[string]FinalBlockLog)
+
+	for hash, block := range FinalBlockLogs {
+		if block.Block.Height >= height {
+			Blocks[hash] = block
+		}
+	}
+
+	return Blocks
+
+}
+
+func GetMiniBlocksFromHeight(height uint64) map[string]MiniBlockLog {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	var Blocks = make(map[string]MiniBlockLog)
+
+	for hash, block := range MiniblockLogs {
+		if block.Miniblock.Height >= height {
+			Blocks[hash] = block
+		}
+	}
+
+	return Blocks
+
 }
 
 func LogFinalBlock(bl block.Block, Address string) {
@@ -163,6 +542,9 @@ func LogFinalBlock(bl block.Block, Address string) {
 
 	if !found {
 
+		if MinerWallet, err1 := rpc.NewAddressFromCompressedKeys(bl.Miner_TX.MinerAddress[:]); err1 == nil {
+			stat.MinerWallet = MinerWallet.String()
+		}
 		stat.Block = bl
 		stat.NodeAddress = Address
 
@@ -170,6 +552,8 @@ func LogFinalBlock(bl block.Block, Address string) {
 	}
 
 }
+
+var last_mining_time uint16
 
 func LogMiniblock(mbl block.MiniBlock, Address string) {
 
@@ -183,6 +567,8 @@ func LogMiniblock(mbl block.MiniBlock, Address string) {
 
 	if !found {
 
+		MinerWallet := GetMinerAddressFromKeyHash(chain, mbl)
+		stat.MinerWallet = MinerWallet
 		stat.Miniblock = mbl
 		stat.NodeAddress = Address
 

@@ -136,6 +136,16 @@ type (
 )
 
 type ( // array without name containing block template in hex
+	MinerInfo_Params struct {
+		Wallet_Address string  `json:"wallet_address"`
+		Miner_Tag      string  `json:"miner_tag"`
+		Miner_Hashrate float64 `json:"miner_hashrate"`
+	}
+	MinerInfo_Result struct {
+	}
+)
+
+type ( // array without name containing block template in hex
 	SubmitBlock_Params struct {
 		JobID                 string `json:"jobid"`
 		MiniBlockhashing_blob string `json:"mbl_blob"`
