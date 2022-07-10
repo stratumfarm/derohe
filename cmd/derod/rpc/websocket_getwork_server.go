@@ -280,15 +280,15 @@ func ShowMinerInfo(wallet string) {
 			miners_connected++
 		}
 
-		good_blocks := stat.blocks + stat.miniblocks
-		bad_blocks := stat.rejected + stat.orphaned
+		total_blocks := float64(stat.blocks + stat.miniblocks + stat.rejected)
+		bad_blocks := float64(stat.rejected + stat.orphaned)
 
 		success_rate := float64(100)
 
-		if bad_blocks >= 1 {
-
-			success_rate = float64(100 - float64(float64(float64(bad_blocks)/float64(good_blocks)*100)))
-
+		if bad_blocks >= 1 && total_blocks >= 1 {
+			success_rate = float64(100 - (float64(bad_blocks/total_blocks) * 100))
+		} else if bad_blocks >= 1 {
+			success_rate = float64(0)
 		}
 		hash_rate_string := ""
 
@@ -368,15 +368,15 @@ func ListMiners() {
 			miners_connected_str = fmt.Sprintf("%d/%d", stat.miners_connected, stat.miners)
 		}
 
-		good_blocks := stat.blocks + stat.miniblocks
-		bad_blocks := stat.rejected + stat.orphaned
+		total_blocks := float64(stat.blocks + stat.miniblocks + stat.rejected)
+		bad_blocks := float64(stat.rejected + stat.orphaned)
 
 		success_rate := float64(100)
 
-		if bad_blocks >= 1 {
-
-			success_rate = float64(100 - float64(float64(float64(bad_blocks)/float64(good_blocks)*100)))
-
+		if bad_blocks >= 1 && total_blocks >= 1 {
+			success_rate = float64(100 - (float64(bad_blocks/total_blocks) * 100))
+		} else if bad_blocks >= 1 {
+			success_rate = float64(0)
 		}
 
 		hash_rate_string := ""

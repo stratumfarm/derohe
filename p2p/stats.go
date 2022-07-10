@@ -107,7 +107,8 @@ func GetActiveMinersCountFromHeight(height int64) (unique_miner_count int) {
 	log_miniblock_mutex.Lock()
 	defer log_miniblock_mutex.Unlock()
 
-	var unique_miners map[string]int
+	var unique_miners = make(map[string]int)
+
 	for _, block := range MiniblockLogs {
 		if block.Miniblock.Height >= uint64(height) {
 			unique_miners[block.MinerWallet]++

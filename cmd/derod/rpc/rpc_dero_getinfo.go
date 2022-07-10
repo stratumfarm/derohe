@@ -145,7 +145,7 @@ func GetInfo(ctx context.Context) (result rpc.GetInfo_Result, err error) {
 	result.CountMutex = globals.CountMutex()
 	result.CountGoProcs = globals.CountGoProcs()
 
-	result.NetworkActiveMiners = p2p.GetActiveMinersCountFromHeight(chain.Get_Height() - 100)
+	result.NetworkActiveMiners = p2p.GetActiveMinersCountFromHeight(chain.Get_Height() - config.RunningConfig.NetworkStatsKeepCount)
 
 	result.HashrateEstimatePercent_1hr = uint64((float64(chain.Get_Network_HashRate()) * HashrateEstimatePercent_1hr()) / 100)
 	result.HashrateEstimatePercent_1day = uint64((float64(chain.Get_Network_HashRate()) * HashrateEstimatePercent_1day()) / 100)

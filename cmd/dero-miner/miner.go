@@ -45,7 +45,6 @@ import (
 	"github.com/docopt/docopt-go"
 	"github.com/go-logr/logr"
 	"github.com/gorilla/websocket"
-	"github.com/ssimunic/gosensors"
 )
 
 //import "github.com/deroproject/derohe/cryptography/crypto"
@@ -291,30 +290,6 @@ func main() {
 				testnet_string := ""
 				if !globals.IsMainnet() {
 					testnet_string = "\033[31m TESTNET"
-				}
-				sensors, err := gosensors.NewFromSystem()
-				// sensors, err := gosensors.NewFromFile("/path/to/log.txt")
-
-				if err != nil {
-					panic(err)
-				}
-
-				// Sensors implements Stringer interface,
-				// so code below will print out JSON
-				fmt.Println(sensors)
-
-				// Also valid
-				// fmt.Println("JSON:", sensors.JSON())
-
-				// Iterate over chips
-				for chip := range sensors.Chips {
-					// Iterate over entries
-					for key, value := range sensors.Chips[chip] {
-						// If CPU or GPU, print out
-						if key == "CPU" || key == "GPU" {
-							fmt.Println(key, value)
-						}
-					}
 				}
 
 				if ModdedNode {
