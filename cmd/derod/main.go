@@ -270,6 +270,7 @@ func main() {
 	}
 
 	params["chain"] = chain
+	globals.BlockChainStartHeight = chain.Get_Height()
 
 	// since user is using a proxy, he definitely does not want to give out his IP
 	if globals.Arguments["--socks-proxy"] != nil {
@@ -335,7 +336,7 @@ func main() {
 	globals.Cron.Start() // start cron jobs
 
 	globals.Cron.AddFunc("@every 10s", derodrpc.UpdateMinerStats)
-	globals.Cron.AddFunc("@every 10s", p2p.UpdateOrphanCount)
+	globals.Cron.AddFunc("@every 10s", p2p.UpdateLiveBlockData)
 	// This tiny goroutine continuously updates status as required
 	go func() {
 		last_our_height := int64(0)
@@ -1117,7 +1118,7 @@ restart_loop:
 
 		case command == "active_nodes":
 
-			active_nodes := p2p.GetActiveNodesFromHeight(chain.Get_Height() - 100)
+			active_nodes := p2p.GetActiveNodesFromHeight(chain.Get_Height() - config.RunningConfig.NetworkStatsKeepCount)
 
 			var ordered_nodes []string
 
@@ -1145,7 +1146,14 @@ restart_loop:
 				show_count = len(active_nodes)
 			}
 
-			fmt.Printf("Network Mining Node Stats - Last 100 Blocks - Showing %d/%d nodes\n\n", show_count, len(active_nodes))
+			height := chain.Get_Height()
+			keep_blocks := config.RunningConfig.NetworkStatsKeepCount
+			keep_string := fmt.Sprintf("Last %d Blocks", config.RunningConfig.NetworkStatsKeepCount)
+			if (height - globals.BlockChainStartHeight) < config.RunningConfig.NetworkStatsKeepCount {
+				keep_blocks = height - globals.BlockChainStartHeight
+				keep_string = fmt.Sprintf("Last %d/%d Blocks", keep_blocks, config.RunningConfig.NetworkStatsKeepCount)
+			}
+			fmt.Printf("Network Mining Node Stats - %s - Showing %d/%d nodes\n\n", keep_string, show_count, len(active_nodes))
 			fmt.Printf("%-30s %-8s %-8s %-8s %-14s %-16s\n", "Node IP", "IB", "MB", "MBO", "Orphan Loss", "Dominance")
 
 			total_blocks := float64(len(p2p.MiniblockLogs) + len(p2p.FinalBlockLogs))
@@ -1166,7 +1174,7 @@ restart_loop:
 
 		case command == "active_miners":
 
-			active_miners := p2p.GetActiveMinersFromHeight(chain.Get_Height() - 100)
+			active_miners := p2p.GetActiveMinersFromHeight(chain.Get_Height() - config.RunningConfig.NetworkStatsKeepCount)
 
 			var ordered_minder []string
 
@@ -1194,7 +1202,15 @@ restart_loop:
 				show_count = len(active_miners)
 			}
 
-			fmt.Printf("Network Mining Stats - Last 100 Blocks - Showing %d/%d miners\n\n", show_count, len(active_miners))
+			height := chain.Get_Height()
+			keep_blocks := config.RunningConfig.NetworkStatsKeepCount
+			keep_string := fmt.Sprintf("Last %d Blocks", config.RunningConfig.NetworkStatsKeepCount)
+			if (height - globals.BlockChainStartHeight) < config.RunningConfig.NetworkStatsKeepCount {
+				keep_blocks = height - globals.BlockChainStartHeight
+				keep_string = fmt.Sprintf("Last %d/%d Blocks", keep_blocks, config.RunningConfig.NetworkStatsKeepCount)
+			}
+
+			fmt.Printf("Network Mining Stats - %s - Showing %d/%d miners\n\n", keep_string, show_count, len(active_miners))
 
 			fmt.Printf("%-76s %-8s %-8s %-8s %-14s %-16s %-26s\n", "Miner Address", "IB", "MB", "MBO", "Orphan Loss", "Dominance", "Node (Probability)")
 
@@ -1205,7 +1221,7 @@ restart_loop:
 				}
 
 				dominance := fmt.Sprintf("%.02f%%", (float64(active_miners[miner]["total"])/1000)*100)
-				node, probabiliy := p2p.BestGuessMinerNodeHeight((chain.Get_Height() - 100), miner)
+				node, probabiliy := p2p.BestGuessMinerNodeHeight((chain.Get_Height() - config.RunningConfig.NetworkStatsKeepCount), miner)
 
 				orphan_loss := float64(float64(active_miners[miner]["orphans"]) / float64(active_miners[miner]["total"]) * 100)
 
@@ -1242,9 +1258,15 @@ restart_loop:
 
 			if len(line_parts) == 2 {
 
-				active_miners := p2p.GetActiveMinersFromHeight(chain.Get_Height() - 100)
-
-				fmt.Printf("Network Mining Stats Since (%d) Last 100 Blocks\n\n", (chain.Get_Height() - 100))
+				active_miners := p2p.GetActiveMinersFromHeight(chain.Get_Height() - config.RunningConfig.NetworkStatsKeepCount)
+				height := chain.Get_Height()
+				keep_blocks := config.RunningConfig.NetworkStatsKeepCount
+				keep_string := fmt.Sprintf("Last %d Blocks", config.RunningConfig.NetworkStatsKeepCount)
+				if (height - globals.BlockChainStartHeight) < config.RunningConfig.NetworkStatsKeepCount {
+					keep_blocks = height - globals.BlockChainStartHeight
+					keep_string = fmt.Sprintf("Last %d/%d Blocks", keep_blocks, config.RunningConfig.NetworkStatsKeepCount)
+				}
+				fmt.Printf("Network Mining Stats Since %s\n\n", keep_string)
 				for miner, _ := range active_miners {
 					if miner != line_parts[1] {
 						continue
@@ -1341,9 +1363,16 @@ restart_loop:
 				error_peer = p2p.ParseIPNoError(line_parts[1])
 				p2p.Print_Peer_Info(error_peer)
 
-				integrators, integrator_data := p2p.PotentialNodeIntegratorsFromHeight(chain.Get_Height()-100, error_peer)
+				integrators, integrator_data := p2p.PotentialNodeIntegratorsFromHeight(chain.Get_Height()-config.RunningConfig.NetworkStatsKeepCount, error_peer)
 
-				fmt.Printf("\nPotential Integrators - Last 100 Blocks\n\n")
+				height := chain.Get_Height()
+				keep_blocks := config.RunningConfig.NetworkStatsKeepCount
+				keep_string := fmt.Sprintf("Last %d Blocks", config.RunningConfig.NetworkStatsKeepCount)
+				if (height - globals.BlockChainStartHeight) < config.RunningConfig.NetworkStatsKeepCount {
+					keep_blocks = height - globals.BlockChainStartHeight
+					keep_string = fmt.Sprintf("Last %d/%d Blocks", keep_blocks, config.RunningConfig.NetworkStatsKeepCount)
+				}
+				fmt.Printf("\nPotential Integrators - %s\n\n", keep_string)
 
 				fmt.Printf("%-76s %-16s %-24s\n", "Miner Address", "IB", "% of Total")
 
@@ -1353,9 +1382,9 @@ restart_loop:
 
 				}
 
-				ordered_miner, data := p2p.PotentialMinersOnNodeFromHeight(chain.Get_Height()-100, error_peer)
+				ordered_miner, data := p2p.PotentialMinersOnNodeFromHeight(chain.Get_Height()-config.RunningConfig.NetworkStatsKeepCount, error_peer)
 
-				fmt.Printf("\nPotential Miners - Last 100 Blocks\n\n")
+				fmt.Printf("\nPotential Miners - %s\n\n", keep_string)
 
 				fmt.Printf("%-76s %-16s %-16s %-16s %-24s\n", "Miner Address", "IB", "MB", "MBO", "% of Total")
 
@@ -1423,6 +1452,16 @@ restart_loop:
 						io.WriteString(l.Stderr(), "peer_log_expiry time need to be in seconds\n")
 					} else {
 						config.RunningConfig.ErrorLogExpirySeconds = i
+
+					}
+				}
+
+				if line_parts[1] == "network_stats_keep" && len(line_parts) == 3 {
+					i, err := strconv.ParseInt(line_parts[2], 10, 64)
+					if err != nil {
+						io.WriteString(l.Stderr(), "network_stats_keep <amount of blocks to keep>\n")
+					} else {
+						config.RunningConfig.NetworkStatsKeepCount = i
 
 					}
 				}
@@ -1510,6 +1549,7 @@ restart_loop:
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n\n", "Option", "Value", "How to change"))
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Operator Name", config.RunningConfig.OperatorName, "config operator <name>"))
+
 			whitelist_incoming := "YES"
 			if !config.RunningConfig.WhitelistIncoming {
 				whitelist_incoming = "NO"
@@ -1520,6 +1560,19 @@ restart_loop:
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Min Peers", p2p.Min_Peers, "config min_peers <num>"))
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Max Peers", p2p.Max_Peers, "config max_peers <num>"))
+
+			blid, _ := chain.Load_Block_Topological_order_at_index(chain.Get_Height())
+			blid50, _ := chain.Load_Block_Topological_order_at_index(chain.Get_Height() - 50)
+
+			now := chain.Load_Block_Timestamp(blid)
+			now50 := chain.Load_Block_Timestamp(blid50)
+			AverageBlockTime50 := float32(now-now50) / (50.0 * 1000)
+			seconds := AverageBlockTime50 * float32(config.RunningConfig.NetworkStatsKeepCount)
+			blocksavetime := time.Duration(seconds * float32(time.Second)).Round(time.Millisecond)
+
+			network_stats := fmt.Sprintf("%d (%s)", config.RunningConfig.NetworkStatsKeepCount, blocksavetime)
+
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Network Block To Keep for Stats", network_stats, "config network_stats_keep <blocks count>"))
 
 			turbo := "OFF"
 			if config.RunningConfig.P2PTurbo {

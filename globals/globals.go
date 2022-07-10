@@ -49,6 +49,7 @@ import (
 var Subsystem_Active uint32 // atomic counter to show how many subsystems are active
 var Exit_In_Progress bool
 var StartTime = time.Now()
+var BlockChainStartHeight int64
 
 // on init this variable is updated to setup global config in 1 go
 var Config config.CHAIN_CONFIG = config.Mainnet // default is mainnnet

@@ -266,14 +266,14 @@ func PotentialMinersOnNodeFromHeight(height int64, Address string) ([]string, ma
 	return ordered_miners, data
 }
 
-func UpdateOrphanCount() {
+func UpdateLiveBlockData() {
 
 	log_miniblock_mutex.Lock()
 	defer log_miniblock_mutex.Unlock()
 
 	for key, mbl := range MiniblockLogs {
 
-		if mbl.Miniblock.Height+101 < uint64(chain.Get_Height()) {
+		if mbl.Miniblock.Height+uint64(config.RunningConfig.NetworkStatsKeepCount) < uint64(chain.Get_Height()) {
 			delete(MiniblockLogs, key)
 			continue
 		}
@@ -288,7 +288,7 @@ func UpdateOrphanCount() {
 
 	for key, bl := range FinalBlockLogs {
 
-		if bl.Block.Height+101 < uint64(chain.Get_Height()) {
+		if bl.Block.Height+uint64(config.RunningConfig.NetworkStatsKeepCount) < uint64(chain.Get_Height()) {
 			delete(FinalBlockLogs, key)
 			continue
 		}

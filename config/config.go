@@ -156,6 +156,7 @@ type RUN_CONFIG struct {
 	BlockedVersions        []string
 	ErrorLogExpirySeconds  int64
 	NodeTag                string
+	NetworkStatsKeepCount  int64
 }
 
 var RunningConfig = RUN_CONFIG{
@@ -172,4 +173,5 @@ var RunningConfig = RUN_CONFIG{
 	ErrorLogExpirySeconds:  600,
 	Min_Peers:              31,
 	Max_Peers:              101,
+	NetworkStatsKeepCount:  100,
 }

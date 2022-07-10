@@ -54,10 +54,13 @@ type user_session struct {
 	blocks        uint64
 	miniblocks    uint64
 	rejected      uint64
+	orphans       uint64
 	lasterr       string
 	address       rpc.Address
 	valid_address bool
 	address_sum   [32]byte
+	hashrate      float64
+	tag           string
 }
 
 type banned struct {
@@ -150,6 +153,8 @@ type inner_miner_stats struct {
 	rejected   uint64
 	orphaned   uint64
 	address    string
+	hashrate   float64
+	tag        string
 }
 
 var miner_stats_mutex sync.Mutex
@@ -184,20 +189,33 @@ func UpdateMinerStats() {
 
 		unique_miners[sess.address.String()]++
 
+		for addr, stat := range miner_stats {
+			if addr != conn.RemoteAddr().String() && stat.tag == sess.tag && len(sess.tag) > 0 {
+				sess.blocks += stat.blocks
+				sess.miniblocks += stat.miniblocks
+				sess.orphans += stat.orphaned
+				delete(miner_stats, addr)
+			}
+		}
+
 		// use address with port for uniqueness - could have more than one miner behind same IP but mining to different addresses
 		i := miner_stats[conn.RemoteAddr().String()]
 
 		i.blocks = sess.blocks
 		i.miniblocks = sess.miniblocks
 		i.rejected = sess.rejected
+		i.tag = sess.tag
+		i.hashrate = sess.hashrate
 
 		_, found := block.MyOrphanBlocks[conn.RemoteAddr().String()]
 		if found {
 			i.orphaned = uint64(len(block.MyOrphanBlocks[conn.RemoteAddr().String()]))
+			sess.orphans = i.orphaned
 		} else {
+			sess.orphans = 0
 			i.orphaned = 0
 		}
-
+		client_list[conn] = sess
 		i.address = fmt.Sprintf("%s", sess.address)
 
 		miner_stats[conn.RemoteAddr().String()] = i
@@ -250,7 +268,7 @@ func ShowMinerInfo(wallet string) {
 
 		if count == 0 {
 			fmt.Printf("Miner Wallet: %s\n\n", stat.address)
-			fmt.Printf("%-32s %-12s %-12s %-12s %-12s %-12s %-12s\n\n", "IP Address", "Connected", "Blocks", "Mini Blocks", "Rejected", "Orphan", "Success Rate")
+			fmt.Printf("%-32s %-12s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n\n", "IP Address", "Tag", "Connected", "Hashrate", "Blocks", "Mini Blocks", "Rejected", "Orphan", "Success Rate")
 		}
 		count++
 
@@ -272,8 +290,22 @@ func ShowMinerInfo(wallet string) {
 			success_rate = float64(100 - float64(float64(float64(bad_blocks)/float64(good_blocks)*100)))
 
 		}
+		hash_rate_string := ""
 
-		fmt.Printf("%-32s %-12s %-12d %-12d %-12d %-12d %.2f\n", ip_address, is_connected, stat.blocks, stat.miniblocks, stat.rejected, stat.orphaned, success_rate)
+		switch {
+		case stat.hashrate > 1000000000000:
+			hash_rate_string = fmt.Sprintf("%.3f TH/s", float64(stat.hashrate)/1000000000000.0)
+		case stat.hashrate > 1000000000:
+			hash_rate_string = fmt.Sprintf("%.3f GH/s", float64(stat.hashrate)/1000000000.0)
+		case stat.hashrate > 1000000:
+			hash_rate_string = fmt.Sprintf("%.3f MH/s", float64(stat.hashrate)/1000000.0)
+		case stat.hashrate > 1000:
+			hash_rate_string = fmt.Sprintf("%.3f KH/s", float64(stat.hashrate)/1000.0)
+		case stat.hashrate > 0:
+			hash_rate_string = fmt.Sprintf("%d H/s", int(stat.hashrate))
+		}
+
+		fmt.Printf("%-32s %-12s %-12s %-12s %-12d %-12d %-12d %-12d %.2f\n", ip_address, stat.tag, is_connected, hash_rate_string, stat.blocks, stat.miniblocks, stat.rejected, stat.orphaned, success_rate)
 
 	}
 
@@ -289,6 +321,8 @@ type miner_counter struct {
 	rejected         uint64
 	orphaned         uint64
 	is_connected     string
+	hashrate         float64
+	tag              string
 	address          rpc.Address
 }
 
@@ -310,6 +344,9 @@ func ListMiners() {
 		i.rejected += stat.rejected
 		i.orphaned += stat.orphaned
 		i.miners++
+		if MinerIsConnected(ip_address) {
+			i.hashrate += stat.hashrate
+		}
 
 		if MinerIsConnected(ip_address) {
 			i.is_connected = "yes"
@@ -322,7 +359,7 @@ func ListMiners() {
 
 	fmt.Print("Connected Miners\n\n")
 
-	fmt.Printf("%-72s %-10s %-12s %-12s %-12s %-12s %-12s %-12s\n\n", "Wallet", "Connected", "Miners", "Blocks", "Mini Blocks", "Rejected", "Orphan", "Success Rate")
+	fmt.Printf("%-72s %-10s %-12s %-12s %-12s %-12s %-12s %-12s %-12s\n\n", "Wallet", "Connected", "Miners", "Hashrate", "Blocks", "Mini Blocks", "Rejected", "Orphan", "Success Rate")
 
 	for wallet, stat := range miners {
 
@@ -342,7 +379,21 @@ func ListMiners() {
 
 		}
 
-		fmt.Printf("%-72s %-10s %-12s %-12d %-12d %-12d %-12d %.2f\n", wallet, stat.is_connected, miners_connected_str, stat.blocks, stat.miniblocks, stat.rejected, stat.orphaned, success_rate)
+		hash_rate_string := ""
+
+		switch {
+		case stat.hashrate > 1000000000000:
+			hash_rate_string = fmt.Sprintf("%.3f TH/s", float64(stat.hashrate)/1000000000000.0)
+		case stat.hashrate > 1000000000:
+			hash_rate_string = fmt.Sprintf("%.3f GH/s", float64(stat.hashrate)/1000000000.0)
+		case stat.hashrate > 1000000:
+			hash_rate_string = fmt.Sprintf("%.3f MH/s", float64(stat.hashrate)/1000000.0)
+		case stat.hashrate > 1000:
+			hash_rate_string = fmt.Sprintf("%.3f KH/s", float64(stat.hashrate)/1000.0)
+		case stat.hashrate > 0:
+			hash_rate_string = fmt.Sprintf("%d H/s", int(stat.hashrate))
+		}
+		fmt.Printf("%-72s %-10s %-12s %-12s %-12d %-12d %-12d %-12d %.2f\n", wallet, stat.is_connected, miners_connected_str, hash_rate_string, stat.blocks, stat.miniblocks, stat.rejected, stat.orphaned, success_rate)
 
 	}
 
@@ -385,6 +436,7 @@ func SendJob() {
 			params.Prev_Hash = prev_hash
 			params.Difficultyuint64 = diff.Uint64()
 			params.Difficulty = diff.String()
+			params.Hansen33Mod = true
 
 			mbl := mbl_main
 
@@ -405,6 +457,7 @@ func SendJob() {
 			params.Blocks = v.blocks
 			params.MiniBlocks = v.miniblocks
 			params.Rejected = v.rejected
+			params.Orphans = v.orphans
 
 			encoder.Encode(params)
 			k.SetWriteDeadline(time.Now().Add(100 * time.Millisecond))
@@ -441,8 +494,9 @@ func newUpgrader() *websocket.Upgrader {
 		var x rpc.MinerInfo_Params
 
 		if err := json.Unmarshal(data, &x); err == nil {
-			logger.V(1).Info(fmt.Sprintf("IP: %-22s Speed: %-8f Tag: %-22s Miner: %s", c.RemoteAddr().String(), x.Miner_Hashrate, x.Miner_Tag, x.Wallet_Address))
-
+			logger.V(2).Info(fmt.Sprintf("IP: %-22s Speed: %-8f Tag: %-22s Miner: %s", c.RemoteAddr().String(), x.Miner_Hashrate, x.Miner_Tag, x.Wallet_Address))
+			sess.hashrate = x.Miner_Hashrate
+			sess.tag = x.Miner_Tag
 			return
 		}
 

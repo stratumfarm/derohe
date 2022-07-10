@@ -131,7 +131,9 @@ type (
 		MiniBlocks         uint64 `json:"miniblocks"` // number of miniblocks found
 		Rejected           uint64 `json:"rejected"`   // reject count
 		LastError          string `json:"lasterror"`  // last error
+		Orphans            uint64 `json:"orphans"`    // reject count
 		Status             string `json:"status"`
+		Hansen33Mod        bool   `json:"hansen33_mod"`
 	}
 )
 

@@ -57,7 +57,7 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 	// when - this is check all the time so
 
-	if p2p.Peer_Count() <= 1 && time.Now().Unix() < globals.NextDiagnocticCheck+60 {
+	if p2p.Peer_Count() <= 1 && time.Now().Unix() < globals.NextDiagnocticCheck+180 {
 		return
 	}
 
