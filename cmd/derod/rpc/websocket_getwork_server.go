@@ -207,7 +207,9 @@ func UpdateMinerStats() {
 		i.rejected = sess.rejected
 		i.tag = sess.tag
 		i.hashrate = sess.hashrate
-		i.lasterr = sess.lasterr
+		if len(sess.lasterr) > 0 {
+			i.lasterr = sess.lasterr
+		}
 
 		_, found := block.MyOrphanBlocks[conn.RemoteAddr().String()]
 		if found {
@@ -347,7 +349,10 @@ func ListMiners() {
 		i.rejected += stat.rejected
 		i.orphaned += stat.orphaned
 		i.miners++
-		i.lasterr = stat.lasterr
+		if len(stat.lasterr) > 0 {
+			i.lasterr = stat.lasterr
+		}
+
 		if MinerIsConnected(ip_address) {
 			i.hashrate += stat.hashrate
 		}
@@ -572,7 +577,22 @@ func newUpgrader() *websocket.Upgrader {
 			if i.fail_count >= 3 {
 				i.timestamp = time.Now()
 				c.Close()
-				UpdateMinerStats()
+
+				miner_stats_mutex.Lock()
+
+				x := miner_stats[c.RemoteAddr().String()]
+
+				x.blocks = sess.blocks
+				x.miniblocks = sess.miniblocks
+				x.rejected = sess.rejected
+				x.tag = sess.tag
+				x.hashrate = sess.hashrate
+				x.lasterr = sess.lasterr
+
+				miner_stats[c.RemoteAddr().String()] = x
+
+				miner_stats_mutex.Unlock()
+
 				delete(client_list, c)
 				logger_getwork.V(1).Info("Banned miner", "Address", miner, "Info", "Banned")
 			}
@@ -720,6 +740,9 @@ func Getwork_server() {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}()
+
+	logger.Info("Waiting 5 second to start getwork")
+	time.Sleep(5 * time.Second)
 
 	if err = svr.Start(); err != nil {
 		logger_getwork.Error(err, "nbio.Start failed.")

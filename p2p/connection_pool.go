@@ -508,7 +508,11 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 					connection.logger.V(3).Info("Sending erasure coded chunk to peer ", "cid", cid)
 					var dummy Dummy
 					fill_common(&peer_specific_list.Common) // fill common info
-					if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
+
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer cancel()
+
+					if err := connection.Client.CallWithContext(ctx, "Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
 						go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Block_Coded", connection.Peer_ID, err.Error())
 						go LogReject(connection.Addr.String())
 
@@ -517,6 +521,7 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 						go LogAccept(connection.Addr.String())
 					}
 					connection.update(&dummy.Common) // update common information
+
 				}(v, count)
 				count++
 			}
@@ -576,7 +581,11 @@ func broadcast_Chunk(chunk *Block_Chunk, PeerID uint64, first_seen int64) { // i
 				connection.logger.V(3).Info("Sending erasure coded chunk INV to peer ", "raw", fmt.Sprintf("%x", chunkid), "blid", fmt.Sprintf("%x", chunk.BLID), "cid", chunk.CHUNK_ID, "hhash", fmt.Sprintf("%x", hhash), "exists", nil != is_chunk_exist(hhash, uint8(chunk.CHUNK_ID)))
 				var dummy Dummy
 				fill_common(&peer_specific_list.Common) // fill common info
-				if err := connection.Client.Call("Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
+
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				if err := connection.Client.CallWithContext(ctx, "Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
 					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
 					go LogReject(connection.Addr.String())
 
@@ -639,8 +648,11 @@ func broadcast_MiniBlock(mbl block.MiniBlock, PeerID uint64, first_seen int64) {
 			go func(connection *Connection) {
 				defer globals.Recover(3)
 
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
 				var dummy Dummy
-				if err := connection.Client.Call("Peer.NotifyMiniBlock", peer_specific_block, &dummy); err != nil {
+				if err := connection.Client.CallWithContext(ctx, "Peer.NotifyMiniBlock", peer_specific_block, &dummy); err != nil {
 					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_MiniBlock", connection.Peer_ID, err.Error())
 					go LogReject(connection.Addr.String())
 
@@ -708,9 +720,12 @@ func broadcast_Tx(tx *transaction.Transaction, PeerID uint64, sent int64) (relay
 					}
 				}()
 
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
 				var dummy Dummy
 				fill_common(&dummy.Common) // fill common info
-				if err := connection.Client.Call("Peer.NotifyINV", request, &dummy); err != nil {
+				if err := connection.Client.CallWithContext(ctx, "Peer.NotifyINV", request, &dummy); err != nil {
 					return
 				}
 				connection.update(&dummy.Common) // update common information

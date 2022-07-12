@@ -168,6 +168,9 @@ var goStartCount int
 
 func main() {
 
+	// Setting upper limit to 100,000 to avoid immediate crashes
+	debug.SetMaxThreads(100000)
+
 	runtime.MemProfileRate = 0
 	var err error
 	globals.Arguments, err = docopt.Parse(command_line, nil, true, config.Version.String(), false)
