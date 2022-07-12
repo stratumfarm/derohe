@@ -253,6 +253,7 @@ try_again:
 					if _, ok := chain.Add_Complete_Block(ramstore.check(response.Block_list[i])); !ok {
 						failcount++
 					}
+					atomic.AddUint64(&connection.BytesIn, 1)
 				}
 			}
 		}
@@ -344,6 +345,7 @@ func (connection *Connection) process_object_response(response Objects, sent int
 		// check whether the object was requested one
 
 		go LogFinalBlock(bl, connection.Addr.String())
+		atomic.AddUint64(&connection.BytesIn, 1)
 
 		// complete the txs
 		for j := range response.CBlocks[i].Txs {
@@ -410,7 +412,10 @@ func (connection *Connection) process_object_response(response Objects, sent int
 	}
 
 	for i := range response.Chunks { // process incoming chunks
-		connection.feed_chunk(&response.Chunks[i], sent)
+		err := connection.feed_chunk(&response.Chunks[i], sent)
+		if err != nil {
+			logger.Error(err, "Feed chunk error")
+		}
 	}
 
 	return nil

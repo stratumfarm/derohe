@@ -675,7 +675,7 @@ func find_peer_to_connect(version int) *Peer {
 	}
 	// if we donot have any white listed, choose from the greylist
 	for _, v := range peer_map {
-		if !IsAddressConnected(ParseIPNoError(v.Address)) && !IsAddressInBanList(ParseIPNoError(v.Address)) {
+		if !IsAddressConnected(ParseIPNoError(v.Address)) && !IsAddressInBanList(ParseIPNoError(v.Address)) && uint64(time.Now().Unix()) > v.ConnectAfter {
 			v.ConnectAfter = uint64(time.Now().UTC().Unix()) + 10 // minimum 10 secs gap
 			return v
 		}

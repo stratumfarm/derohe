@@ -959,7 +959,7 @@ restart_loop:
 			hostname, _ := os.Hostname()
 			fmt.Printf("STATUS MENU for DERO HE Node - Hostname: %s\n\n", hostname)
 			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String())
-			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
+			fmt.Printf("Uptime Since: %s - Block: %d\n\n", globals.StartTime.Format(time.RFC1123), globals.BlockChainStartHeight)
 
 			fmt.Printf("DERO Daemon - Threads [%d/%d] - Mutex [%d/%d] - Blocked [%d/%d] - GO Procs [%d/%d]\n",
 				threadStartCount, globals.CountThreads(), mutexStartCount, globals.CountMutex(),
@@ -1084,7 +1084,7 @@ restart_loop:
 			hostname, _ := os.Hostname()
 
 			fmt.Printf("Hostname: %s - Uptime: %s\n", hostname, time.Now().Sub(globals.StartTime).Round(time.Second).String())
-			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
+			fmt.Printf("Uptime Since: %s - Block: %d\n\n", globals.StartTime.Format(time.RFC1123), globals.BlockChainStartHeight)
 
 		case command == "ban_above_height":
 
@@ -1156,7 +1156,9 @@ restart_loop:
 			fmt.Printf("Network Mining Node Stats - %s - Showing %d/%d nodes\n\n", keep_string, show_count, len(active_nodes))
 			fmt.Printf("%-30s %-8s %-8s %-8s %-14s %-16s\n", "Node IP", "IB", "MB", "MBO", "Orphan Loss", "Dominance")
 
-			total_blocks := float64(len(p2p.MiniblockLogs) + len(p2p.FinalBlockLogs))
+			ib, mb := p2p.GetBlockLogLenght()
+
+			total_blocks := float64(ib + mb)
 			count := 0
 			for _, node := range ordered_nodes {
 				if count >= show_count {
@@ -1220,7 +1222,7 @@ restart_loop:
 					break
 				}
 
-				dominance := fmt.Sprintf("%.02f%%", (float64(active_miners[miner]["total"])/1000)*100)
+				dominance := fmt.Sprintf("%.02f%%", (float64(active_miners[miner]["total"]) / (10 * float64(keep_blocks)) * 100))
 				node, probabiliy := p2p.BestGuessMinerNodeHeight((chain.Get_Height() - config.RunningConfig.NetworkStatsKeepCount), miner)
 
 				orphan_loss := float64(float64(active_miners[miner]["orphans"]) / float64(active_miners[miner]["total"]) * 100)
@@ -1273,7 +1275,7 @@ restart_loop:
 					}
 
 					fmt.Printf("%-76s %-16s %-16s %-24s\n", "Miner", "IB", "MB", "Dominance")
-					dominance := fmt.Sprintf("%.02f", (float64(active_miners[miner]["total"])/1000)*100)
+					dominance := fmt.Sprintf("%.02f%%", (float64(active_miners[miner]["total"]) / (10 * float64(keep_blocks)) * 100))
 
 					orphan_loss := float64(float64(active_miners[miner]["orphans"]) / float64(active_miners[miner]["total"]) * 100)
 					orphan_string := fmt.Sprintf("%.2f%%", orphan_loss)

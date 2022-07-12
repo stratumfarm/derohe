@@ -80,7 +80,7 @@ ONE CPU, ONE VOTE.
 http://wiki.dero.io
 
 Usage:
-  dero-miner  --wallet-address=<wallet_address> [--daemon-rpc-address=<minernode1.dero.live:10100>] [--mining-threads=<threads>] [--testnet] [--debug] [--tag=<tag>] [--hiveos]
+  dero-miner  --wallet-address=<wallet_address> [--daemon-rpc-address=<dero-node.mysrv.cloud:10100>] [--mining-threads=<threads>] [--testnet] [--debug] [--tag=<tag>] [--hiveos]
   dero-miner --bench 
   dero-miner -h | --help
   dero-miner --version
@@ -89,12 +89,12 @@ Options:
   -h --help     Show this screen.
   --version     Show version.
   --bench  	    Run benchmark mode.
-  --daemon-rpc-address=<127.0.0.1:10102>    Miner will connect to daemon RPC on this port (default minernode1.dero.live:10100).
+  --daemon-rpc-address=<127.0.0.1:10102>    Miner will connect to daemon RPC on this port (default dero-node.mysrv.cloud:10100).
   --wallet-address=<wallet_address>    This address is rewarded when a block is mined sucessfully.
   --mining-threads=<threads>         Number of CPU threads for mining [default: ` + fmt.Sprintf("%d", runtime.GOMAXPROCS(0)) + `]
   --tag=<tag>						Set Miner Tag (Hansen33 Mod Feature).
 
-Example Mainnet: ./dero-miner-linux-amd64 --wallet-address dero1qy0ehnqjpr0wxqnknyc66du2fsxyktppkr8m8e6jvplp954klfjz2qqhmy4zf --daemon-rpc-address=minernode1.dero.live:10100
+Example Mainnet: ./dero-miner-linux-amd64 --wallet-address dero1qy0ehnqjpr0wxqnknyc66du2fsxyktppkr8m8e6jvplp954klfjz2qqhmy4zf --daemon-rpc-address=dero-node.mysrv.cloud:10100
 Example Testnet: ./dero-miner-linux-amd64 --wallet-address deto1qy0ehnqjpr0wxqnknyc66du2fsxyktppkr8m8e6jvplp954klfjz2qqdzcd8p --daemon-rpc-address=127.0.0.1:40402 
 If daemon running on local machine no requirement of '--daemon-rpc-address' argument. 
 `
@@ -164,7 +164,8 @@ func main() {
 	}
 
 	if !globals.Arguments["--testnet"].(bool) {
-		daemon_rpc_address = "minernode1.dero.live:10100"
+		// default miner node : dero-node.mysrv.cloud
+		daemon_rpc_address = "213.171.208.37:10100"
 	} else {
 		daemon_rpc_address = "127.0.0.1:10100"
 	}
@@ -476,13 +477,12 @@ func getwork(wallet_address string) {
 		our_height = int64(job.Height)
 		Difficulty = job.Difficultyuint64
 
-		orphan_block_counter = job.Orphans
 		if ModdedNode != job.Hansen33Mod {
 			if job.Hansen33Mod {
 				logger.Info("Hansen33 Mod Mining Node Detected - Happy Mining")
 				orphan_block_counter = job.Orphans
 			} else {
-				logger.Info("Regular Mining Node")
+				logger.Info("Official Mining Node Detected - Happy Mining")
 			}
 		}
 		ModdedNode = job.Hansen33Mod

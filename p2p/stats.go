@@ -82,6 +82,18 @@ var SelfishNodeStats = make(map[string][]MyBlockReceivingError)
 
 var log_miniblock_mutex sync.Mutex
 
+func GetBlockLogLenght() (int, int) {
+
+	log_miniblock_mutex.Lock()
+	defer log_miniblock_mutex.Unlock()
+
+	ib := len(FinalBlockLogs)
+	mb := len(MiniblockLogs)
+
+	return ib, mb
+
+}
+
 func GetMinerAddressFromKeyHash(chain *blockchain.Blockchain, mbl block.MiniBlock) string {
 
 	if toporecord, err1 := chain.Store.Topo_store.Read(chain.Get_Height()); err1 == nil { // we must now fill in compressed ring members

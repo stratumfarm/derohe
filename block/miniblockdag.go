@@ -21,6 +21,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/deroproject/derohe/config"
 )
 
 type MiniBlocksCollection struct {
@@ -52,11 +54,18 @@ var LastPurgeHeight uint64 = 0
 var MiniBlockCounterMap = make(map[string]time.Time)
 var OrphanMiniCounterMap = make(map[string]time.Time)
 var OrphanMiniCounter100 = make(map[string]int64)
+var OrphanBlocks = make(map[string]int64)
 
 func BlockRateCount(height int64) (int, int, float64, int) {
 
 	orphan_block_count_mutex.Lock()
 	defer orphan_block_count_mutex.Unlock()
+
+	for x := range OrphanBlocks {
+		if OrphanBlocks[x]+config.RunningConfig.NetworkStatsKeepCount < height {
+			delete(OrphanBlocks, x)
+		}
+	}
 
 	for x := range OrphanMiniCounter100 {
 		if OrphanMiniCounter100[x]+100 < height {
@@ -87,7 +96,10 @@ func BlockRateCount(height int64) (int, int, float64, int) {
 
 func IsBlockOrphan(block_hash string) bool {
 
-	_, x := OrphanMiniCounter100[block_hash]
+	orphan_block_count_mutex.Lock()
+	defer orphan_block_count_mutex.Unlock()
+
+	_, x := OrphanBlocks[block_hash]
 	if x {
 		return true
 	}
@@ -136,6 +148,7 @@ func (c *MiniBlocksCollection) PurgeHeight(minis []MiniBlock, height int64) (pur
 						i := time.Now()
 						OrphanMiniCounterMap[fmt.Sprintf("%s", mbl.GetHash())] = i
 						OrphanMiniCounter100[fmt.Sprintf("%s", mbl.GetHash())] = height
+						OrphanBlocks[fmt.Sprintf("%s", mbl.GetHash())] = height
 						orphan_block_count_mutex.Unlock()
 
 						miner_mini_mutex.Lock()

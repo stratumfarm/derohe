@@ -493,6 +493,8 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 					goto done
 				}
 
+				atomic.AddUint64(&v.BytesOut, 1)
+				// Can or should we adjust this based on tip expansion failure?
 				go func(connection *Connection, cid int) {
 					defer globals.Recover(3)
 					var peer_specific_list ObjectList
@@ -515,7 +517,6 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 						go LogAccept(connection.Addr.String())
 					}
 					connection.update(&dummy.Common) // update common information
-
 				}(v, count)
 				count++
 			}
@@ -560,7 +561,7 @@ func broadcast_Chunk(chunk *Block_Chunk, PeerID uint64, first_seen int64) { // i
 			}
 
 			count++
-
+			atomic.AddUint64(&v.BytesOut, 1)
 			go func(connection *Connection) {
 				defer globals.Recover(3)
 				var peer_specific_list ObjectList
@@ -579,17 +580,16 @@ func broadcast_Chunk(chunk *Block_Chunk, PeerID uint64, first_seen int64) { // i
 					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
 					go LogReject(connection.Addr.String())
 
-					// if PeerID == GetPeerID() || PeerID == 0 {
-					// 	go SelfishNodeCounter(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
-					// }
-
 					return
 				} else {
 					go LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
+				// if PeerID == GetPeerID() || PeerID == 0 {
+				// 	go logger.Info(fmt.Sprintf("broadcast_Chunk - Peer: %s - Count: %d - PeerID: %d", connection.Addr.String(), count, PeerID))
+				// 	// go SelfishNodeCounter(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
+				// }
 			}(v)
-
 		}
 	}
 }
@@ -633,6 +633,7 @@ func broadcast_MiniBlock(mbl block.MiniBlock, PeerID uint64, first_seen int64) {
 			if (our_height - peer_height) > 25 {
 				continue
 			}
+			atomic.AddUint64(&v.BytesOut, 1)
 
 			count++
 			go func(connection *Connection) {
@@ -652,6 +653,7 @@ func broadcast_MiniBlock(mbl block.MiniBlock, PeerID uint64, first_seen int64) {
 					go LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
+
 			}(v)
 		}
 

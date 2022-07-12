@@ -557,6 +557,7 @@ func P2P_Server_v2() {
 		go func() {
 			time.Sleep(2 * time.Second)
 			connection.dispatch_test_handshake()
+
 		}()
 
 	})
