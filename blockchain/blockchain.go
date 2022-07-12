@@ -109,7 +109,6 @@ var logger logr.Logger = logr.Discard() // default discard all logs
 
 func SetLogger(newlogger *logr.Logger) {
 	logger = *newlogger
-
 }
 
 func Blockchain_Start(params map[string]interface{}) (*Blockchain, error) {
@@ -370,6 +369,23 @@ func (chain *Blockchain) Shutdown() {
 	//chain.Store.Shutdown()
 	atomic.AddUint32(&globals.Subsystem_Active, ^uint32(0)) // this decrement 1 fom subsystem
 	logger.Info("Stopped Blockchain")
+}
+
+var chain_extended_lock sync.Mutex
+var SameHeightChainExtended = make(map[int64]int64)
+
+func GetSameHeightChainExtendedCount(chain *Blockchain) int {
+
+	chain_extended_lock.Lock()
+	defer chain_extended_lock.Unlock()
+
+	for x := range SameHeightChainExtended {
+		if x+100 < chain.Load_TOP_HEIGHT() {
+			delete(SameHeightChainExtended, x)
+		}
+	}
+
+	return len(SameHeightChainExtended)
 }
 
 // this is the only entrypoint for new / old blocks even for genesis block
@@ -872,6 +888,9 @@ func (chain *Blockchain) Add_Complete_Block(cbl *block.Complete_Block) (err erro
 		block_logger.Info("Chain extended", "new height", height)
 	} else {
 		block_logger.Info("Chain extended but height is same", "new height", height)
+		chain_extended_lock.Lock()
+		SameHeightChainExtended[height]++
+		chain_extended_lock.Unlock()
 	}
 
 	{
@@ -1113,8 +1132,14 @@ func (chain *Blockchain) Add_Complete_Block(cbl *block.Complete_Block) (err erro
 		block_logger.Info(fmt.Sprintf("Chain Height %d", chain.Get_Height()))
 	}
 
-	purge_count := chain.MiniBlocks.PurgeHeight(chain.Get_Stable_Height()) // purge all miniblocks upto this height
-	logger.V(2).Info("Purged miniblock", "count", purge_count)
+	hash, err := chain.Load_Block_Topological_order_at_index(int64(chain.Get_Stable_Height()))
+	oldBlock, err := chain.Load_BL_FROM_ID(hash)
+
+	if chain.Get_Height() > 0 {
+		purge_count := chain.MiniBlocks.PurgeHeight(oldBlock.MiniBlocks, chain.Get_Stable_Height()) // purge all miniblocks upto this height
+		logger.V(2).Info("Purged miniblock", "count", purge_count)
+
+	}
 
 	result = true
 
@@ -1433,7 +1458,7 @@ func (chain *Blockchain) Rewind_Chain(rewind_count int) (result bool) {
 		chain.Store.Topo_store.Clean(top_block_topo_index - i)
 	}
 
-	chain.MiniBlocks.PurgeHeight(0xffffffffffffff) // purge all miniblocks upto this height
+	chain.MiniBlocks.PurgeHeight(nil, 0xffffffffffffff) // purge all miniblocks upto this height
 
 	return true
 }

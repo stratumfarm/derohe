@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/deroproject/derohe/block"
 	"github.com/deroproject/derohe/config"
 	"github.com/deroproject/derohe/globals"
 	"github.com/deroproject/derohe/rpc"
@@ -134,10 +135,212 @@ func CountMiners() int {
 	return miners_count
 }
 
+var CountUniqueMiners int64
 var CountMinisAccepted int64 // total accepted which passed Powtest, chain may still ignore them
 var CountMinisRejected int64 // total rejected // note we are only counting rejected as those which didnot pass Pow test
-var CountBlocks int64        //  total blocks found as integrator, note that block can still be a orphan
+var CountMinisOrphaned int64
+var CountBlocks int64 //  total blocks found as integrator, note that block can still be a orphan
+
 // total = CountAccepted + CountRejected + CountBlocks(they may be orphan or may not get rewarded)
+
+type inner_miner_stats struct {
+	blocks     uint64
+	miniblocks uint64
+	rejected   uint64
+	orphaned   uint64
+	address    string
+}
+
+var miner_stats_mutex sync.Mutex
+var miner_stats = make(map[string]inner_miner_stats)
+
+func GetMinerWallet(ip_address string) string {
+	miner_stats_mutex.Lock()
+	defer miner_stats_mutex.Unlock()
+
+	wallet := ""
+
+	for miner, stat := range miner_stats {
+		if miner == ip_address {
+			return stat.address
+		}
+	}
+
+	return wallet
+}
+
+func UpdateMinerStats() {
+
+	client_list_mutex.Lock()
+	defer client_list_mutex.Unlock()
+
+	miner_stats_mutex.Lock()
+	defer miner_stats_mutex.Unlock()
+
+	var unique_miners = make(map[string]int)
+
+	for conn, sess := range client_list {
+
+		unique_miners[sess.address.String()]++
+
+		// use address with port for uniqueness - could have more than one miner behind same IP but mining to different addresses
+		i := miner_stats[conn.RemoteAddr().String()]
+
+		i.blocks = sess.blocks
+		i.miniblocks = sess.miniblocks
+		i.rejected = sess.rejected
+
+		_, found := block.MyOrphanBlocks[conn.RemoteAddr().String()]
+		if found {
+			i.orphaned = uint64(len(block.MyOrphanBlocks[conn.RemoteAddr().String()]))
+		} else {
+			i.orphaned = 0
+		}
+
+		i.address = fmt.Sprintf("%s", sess.address)
+
+		miner_stats[conn.RemoteAddr().String()] = i
+
+	}
+
+	CountUniqueMiners = int64(len(unique_miners))
+
+	// reset counter
+	CountMinisOrphaned = 0
+	for miner := range miner_stats {
+		_, found := block.MyOrphanBlocks[miner]
+		if found {
+			CountMinisOrphaned += int64(len(block.MyOrphanBlocks[miner]))
+		}
+	}
+}
+
+func MinerIsConnected(ip_address string) bool {
+
+	client_list_mutex.Lock()
+	defer client_list_mutex.Unlock()
+
+	for conn := range client_list {
+		if conn.RemoteAddr().String() == ip_address {
+			return true
+		}
+	}
+
+	return false
+}
+
+func ShowMinerInfo(wallet string) {
+
+	fmt.Print("Miner Info\n\n")
+
+	miner_stats_mutex.Lock()
+	defer miner_stats_mutex.Unlock()
+
+	count := 0
+	for ip_address, stat := range miner_stats {
+
+		if fmt.Sprintf("%s", stat.address) != wallet && ParseIPNoError(wallet) != ParseIPNoError(ip_address) {
+			continue
+		}
+
+		if count == 0 {
+			fmt.Printf("Miner Wallet: %s\n\n", stat.address)
+			fmt.Printf("%-32s %-12s %-12s %-12s %-12s %-12s %-12s\n\n", "IP Address", "Connected", "Blocks", "Mini Blocks", "Rejected", "Orphan", "Success Rate")
+		}
+		count++
+
+		is_connected := "no"
+		miners_connected := uint64(0)
+
+		if MinerIsConnected(ip_address) {
+			is_connected = "yes"
+			miners_connected++
+		}
+
+		good_blocks := stat.blocks + stat.miniblocks
+		bad_blocks := stat.rejected + stat.orphaned
+
+		success_rate := float64(100)
+
+		if bad_blocks >= 1 {
+
+			success_rate = float64(100 - float64(float64(float64(bad_blocks)/float64(good_blocks)*100)))
+
+		}
+
+		fmt.Printf("%-32s %-12s %-12d %-12d %-12d %-12d %.2f\n", ip_address, is_connected, stat.blocks, stat.miniblocks, stat.rejected, stat.orphaned, success_rate)
+
+	}
+
+	fmt.Print("\n")
+
+}
+
+type miner_counter struct {
+	miners           uint64
+	miners_connected uint64
+	blocks           uint64
+	miniblocks       uint64
+	rejected         uint64
+	orphaned         uint64
+	is_connected     string
+	address          rpc.Address
+}
+
+func ListMiners() {
+
+	var miners = make(map[string]miner_counter)
+
+	// Aggregate miner stats per wallet
+	miner_stats_mutex.Lock()
+	defer miner_stats_mutex.Unlock()
+
+	for ip_address, stat := range miner_stats {
+		i := miners[fmt.Sprintf("%s", stat.address)]
+
+		i.blocks += stat.blocks
+		i.miniblocks += stat.miniblocks
+		i.rejected += stat.rejected
+		i.orphaned += stat.orphaned
+		i.miners++
+
+		if MinerIsConnected(ip_address) {
+			i.is_connected = "yes"
+			i.miners_connected++
+		} else if i.is_connected != "yes" {
+			i.is_connected = "no"
+		}
+		miners[fmt.Sprintf("%s", stat.address)] = i
+	}
+
+	fmt.Print("Connected Miners\n\n")
+
+	fmt.Printf("%-72s %-10s %-12s %-12s %-12s %-12s %-12s %-12s\n\n", "Wallet", "Connected", "Miners", "Blocks", "Mini Blocks", "Rejected", "Orphan", "Success Rate")
+
+	for wallet, stat := range miners {
+
+		miners_connected_str := fmt.Sprintf("%d", stat.miners)
+		if stat.miners != stat.miners_connected {
+			miners_connected_str = fmt.Sprintf("%d/%d", stat.miners_connected, stat.miners)
+		}
+
+		good_blocks := stat.blocks + stat.miniblocks
+		bad_blocks := stat.rejected + stat.orphaned
+
+		success_rate := float64(100)
+
+		if bad_blocks >= 1 {
+
+			success_rate = float64(100 - float64(float64(float64(bad_blocks)/float64(good_blocks)*100)))
+
+		}
+
+		fmt.Printf("%-72s %-10s %-12s %-12d %-12d %-12d %-12d %.2f\n", wallet, stat.is_connected, miners_connected_str, stat.blocks, stat.miniblocks, stat.rejected, stat.orphaned, success_rate)
+
+	}
+
+	fmt.Print("\n")
+}
 
 func SendJob() {
 
@@ -204,11 +407,13 @@ func SendJob() {
 		}(rk, rv)
 
 	}
+	go UpdateMinerStats()
 
 }
 
 func newUpgrader() *websocket.Upgrader {
 	u := websocket.NewUpgrader()
+	go UpdateMinerStats()
 
 	u.OnMessage(func(c *websocket.Conn, messageType websocket.MessageType, data []byte) {
 		// echo
@@ -243,6 +448,16 @@ func newUpgrader() *websocket.Upgrader {
 		_, blid, sresult, err := chain.Accept_new_block(tstamp, mbl_block_data_bytes)
 
 		if sresult {
+
+			// Save mini and miner
+			var mbl block.MiniBlock
+
+			if err = mbl.Deserialize(mbl_block_data_bytes); err != nil {
+				logger.V(1).Error(err, "Error Deserializing newly minted block")
+			} else {
+				go block.AddBlockToMyCollection(mbl, c.RemoteAddr().String())
+			}
+
 			//logger.Infof("Submitted block %s accepted", blid)
 			if blid.IsZero() {
 				sess.miniblocks++
@@ -259,6 +474,7 @@ func newUpgrader() *websocket.Upgrader {
 						ban_list[miner] = t
 					}
 				}
+
 			} else {
 				sess.blocks++
 				atomic.AddInt64(&CountBlocks, 1)
@@ -283,6 +499,8 @@ func newUpgrader() *websocket.Upgrader {
 			}
 			ban_list[miner] = i
 		}
+
+		go UpdateMinerStats()
 
 	})
 	u.OnClose(func(c *websocket.Conn, err error) {
@@ -403,10 +621,10 @@ func Getwork_server() {
 
 	//globals.Cron.AddFunc("@every 2s", SendJob) // if daemon restart automaticaly send job
 	go func() { // try to be as optimized as possible to lower hash wastage
-		if config.GETWorkJobDispatchTime.Milliseconds() < 40 {
-			config.GETWorkJobDispatchTime = 500 * time.Millisecond
+		if config.RunningConfig.GETWorkJobDispatchTime.Milliseconds() < 40 {
+			config.RunningConfig.GETWorkJobDispatchTime = 500 * time.Millisecond
 		}
-		logger_getwork.Info("Job will be dispatched every", "time", config.GETWorkJobDispatchTime)
+		logger_getwork.Info("Job will be dispatched every", "time", config.RunningConfig.GETWorkJobDispatchTime)
 		old_mini_count := 0
 		old_time := time.Now()
 		old_height := int64(0)
@@ -414,7 +632,7 @@ func Getwork_server() {
 			if miners_count > 0 {
 				current_mini_count := chain.MiniBlocks.Count()
 				current_height := chain.Get_Height()
-				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > config.GETWorkJobDispatchTime {
+				if old_mini_count != current_mini_count || old_height != current_height || time.Now().Sub(old_time) > config.RunningConfig.GETWorkJobDispatchTime {
 					old_mini_count = current_mini_count
 					old_height = current_height
 					SendJob()

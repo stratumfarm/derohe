@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -92,6 +93,48 @@ var Exit_In_Progress = make(chan bool)
 
 var logger logr.Logger
 
+func save_config_file() {
+
+	config_file := filepath.Join(globals.GetDataDirectory(), "config.json")
+	file, err := os.Create(config_file)
+	if err != nil {
+		logger.Error(err, "creating new config file")
+	} else {
+		defer file.Close()
+		encoder := json.NewEncoder(file)
+		encoder.SetIndent("", "\t")
+		err = encoder.Encode(&config.RunningConfig)
+		if err != nil {
+			logger.Error(err, "Error loading config data")
+		} else { // successfully unmarshalled data
+			logger.V(1).Info("Successfully saved config to file")
+		}
+	}
+}
+
+// loads peers list from disk
+func load_config_file() {
+
+	config_file := filepath.Join(globals.GetDataDirectory(), "config.json")
+	if _, err := os.Stat(config_file); errors.Is(err, os.ErrNotExist) {
+		return // since file doesn't exist , we cannot load it
+	}
+	file, err := os.Open(config_file)
+	if err != nil {
+		logger.Error(err, "opening peer file")
+	} else {
+		defer file.Close()
+		decoder := json.NewDecoder(file)
+		err = decoder.Decode(&config.RunningConfig)
+		if err != nil {
+			logger.Error(err, "Error loading config fom file")
+		} else { // successfully unmarshalled data
+			logger.V(1).Info("Successfully loaded config from file", "peer_count")
+		}
+	}
+
+}
+
 func dump(filename string) {
 	f, err := os.Create(filename)
 	if err != nil {
@@ -109,6 +152,7 @@ func dump(filename string) {
 }
 
 func main() {
+
 	runtime.MemProfileRate = 0
 	var err error
 	globals.Arguments, err = docopt.Parse(command_line, nil, true, config.Version.String(), false)
@@ -146,6 +190,8 @@ func main() {
 	})
 
 	logger = globals.Logger.WithName("derod")
+
+	load_config_file() // load config file
 
 	logger.Info("DERO HE daemon :  It is an alpha version, use it for testing/evaluations purpose only.")
 	logger.Info("Copyright 2017-2021 DERO Project. All rights reserved.")
@@ -216,11 +262,11 @@ func main() {
 
 	i, err := strconv.ParseInt(os.Getenv("JOB_SEND_TIME_DELAY"), 10, 64)
 	if err != nil {
-		config.GETWorkJobDispatchTime = time.Duration(i * int64(time.Millisecond))
+		config.RunningConfig.GETWorkJobDispatchTime = time.Duration(i * int64(time.Millisecond))
 	}
 
-	if config.GETWorkJobDispatchTime.Milliseconds() < 40 {
-		config.GETWorkJobDispatchTime = 500 * time.Millisecond
+	if config.RunningConfig.GETWorkJobDispatchTime.Milliseconds() < 40 {
+		config.RunningConfig.GETWorkJobDispatchTime = 500 * time.Millisecond
 	}
 
 	go derodrpc.Getwork_server()
@@ -333,15 +379,23 @@ func main() {
 						turtle_string = " (\033[31mTurtle\033[32m)"
 					}
 
-					if config.OnlyTrusted {
+					if config.RunningConfig.OnlyTrusted {
 						turtle_string = " (\033[31mTrusted Mode\033[32m)"
+						if globals.NetworkTurtle {
+							turtle_string = turtle_string + " (!)"
+						}
 					}
 
 					testnet_string += " " + strconv.Itoa(chain.MiniBlocks.Count()) + " " + globals.GetOffset().Round(time.Millisecond).String() + "|" + globals.GetOffsetNTP().Round(time.Millisecond).String() + "|" + globals.GetOffsetP2P().Round(time.Millisecond).String()
 
+					good_blocks := (derodrpc.CountMinisAccepted + derodrpc.CountBlocks)
+
 					miner_count := derodrpc.CountMiners()
-					l.SetPrompt(fmt.Sprintf("\033[1m\033[32mDERO HE (\033[31m%s-mod\033[32m):%s \033[0m"+color+"%d/%d [%d/%d] "+pcolor+"P %d/%d TXp %d:%d \033[32mNW %s >MN %d %s>>\033[0m ",
-						config.OperatorName, turtle_string, our_height, topo_height, best_height, best_topo_height, peer_whitelist, peer_count, mempool_tx_count, regpool_tx_count, hash_rate_string, miner_count, testnet_string))
+					unique_miner_count := derodrpc.CountUniqueMiners
+
+					l.SetPrompt(fmt.Sprintf("\033[1m\033[32mDERO HE (\033[31m%s-mod\033[32m):%s \033[0m"+color+"%d/%d [%d/%d] "+pcolor+"P %d/%d TXp %d:%d \033[32mNW %s >MN %d/%d [%d/%d] %s>>\033[0m ",
+						config.RunningConfig.OperatorName, turtle_string, our_height, topo_height, best_height, best_topo_height, peer_whitelist, peer_count, mempool_tx_count,
+						regpool_tx_count, hash_rate_string, unique_miner_count, miner_count, (good_blocks - derodrpc.CountMinisOrphaned), (good_blocks + derodrpc.CountMinisRejected), testnet_string))
 					l.Refresh()
 					last_second = time.Now().Unix()
 					last_our_height = our_height
@@ -889,7 +943,6 @@ restart_loop:
 			fmt.Printf("Uptime Since: %s\n\n", globals.StartTime.Format(time.RFC1123))
 
 			fmt.Printf("Network %s Height %d  NW Hashrate %0.03f MH/sec  Peers %d inc, %d out  MEMPOOL size %d REGPOOL %d  Total Supply %s DERO \n", globals.Config.Name, chain.Get_Height(), float64(chain.Get_Network_HashRate())/1000000.0, inc, out, mempool_tx_count, regpool_tx_count, globals.FormatMoney(supply))
-			fmt.Printf("Block Pop Count: %d\n", globals.BlockPopCount)
 
 			tips := chain.Get_TIPS()
 			fmt.Printf("Tips ")
@@ -908,6 +961,17 @@ restart_loop:
 			fmt.Printf("Local time %s  (as per system clock) \n", time.Now())
 			fmt.Printf("Local time %s  (offset %s) (as per daemon) should be close to 0\n", globals.Time(), time.Now().Sub(globals.Time()))
 
+			fmt.Printf("\nBlock Pop Count: %d\n", globals.BlockPopCount)
+
+			orphan_count, mini_count, orphan_rate, orphan_100 := block.BlockRateCount(chain.Get_Height())
+			fmt.Printf("Network Orphan Mini Block Rate (10min): %d/%d (%.2f%%)\n", orphan_count, mini_count, orphan_rate)
+
+			fmt.Print("Stats - Last 100 Blocks (900 Mini blocks)\n")
+
+			extended_count := blockchain.GetSameHeightChainExtendedCount(chain)
+			fmt.Printf("\tSame Height Extended Rate: %.2f%% (%d)\n", float64(extended_count), extended_count)
+			fmt.Printf("\tNetwork Orphan Mini Block Rate: %.2f%% (%d)\n", float64(float64(float64(orphan_100)/900)*100), orphan_100)
+
 			fmt.Print("\nPeer Stats:\n")
 			fmt.Printf("\tPeer ID: %d\n", p2p.GetPeerID())
 
@@ -920,14 +984,20 @@ restart_loop:
 			} else {
 				fmt.Print("\tMinting Velocity: 0.0000 MB/h\t0.0000MB/d (since uptime)\n")
 			}
-			//if derodrpc.CountMiners() > 0 { // only give info if we have a miner connected
-			fmt.Printf("\tMB:%d MBR:%d IB:%d\n", derodrpc.CountMinisAccepted, derodrpc.CountMinisRejected, derodrpc.CountBlocks)
+
+			OrphanBlockRate := float64(0)
+			if derodrpc.CountMinisOrphaned > 0 {
+				OrphanBlockRate = float64(float64(float64(derodrpc.CountMinisOrphaned)/float64(blocksMinted)) * 100)
+			}
+			fmt.Printf("\tMy Orphan Block Rate: %.2f%%\n", OrphanBlockRate)
+
+			fmt.Printf("\tIB:%d MB:%d MBR:%d MBO:%d\n", derodrpc.CountBlocks, derodrpc.CountMinisAccepted, derodrpc.CountMinisRejected, derodrpc.CountMinisOrphaned)
 			fmt.Printf("\tMB %.02f%%(1hr)\t%.05f%%(1d)\t%.06f%%(7d)\t(Moving average %%, will be 0 if no miniblock found)\n", derodrpc.HashrateEstimatePercent_1hr(), derodrpc.HashrateEstimatePercent_1day(), derodrpc.HashrateEstimatePercent_7day())
 			mh_1hr := uint64((float64(chain.Get_Network_HashRate()) * derodrpc.HashrateEstimatePercent_1hr()) / 100)
 			mh_1d := uint64((float64(chain.Get_Network_HashRate()) * derodrpc.HashrateEstimatePercent_1day()) / 100)
 			mh_7d := uint64((float64(chain.Get_Network_HashRate()) * derodrpc.HashrateEstimatePercent_7day()) / 100)
 			fmt.Printf("\tAvg Mining HR %s(1hr)\t%s(1d)\t%s(7d)\n", hashratetostring(mh_1hr), hashratetostring(mh_1d), hashratetostring(mh_7d))
-			//}
+			fmt.Printf("\tReward Generated (since uptime): %s\n", globals.FormatMoney(((blockchain.CalcBlockReward(uint64(chain.Get_Height())) / 10) * uint64(blocksMinted-derodrpc.CountMinisOrphaned))))
 
 			fmt.Printf("\n")
 			fmt.Printf("Current Block Reward: %s\n", globals.FormatMoney(blockchain.CalcBlockReward(uint64(chain.Get_Height()))))
@@ -954,7 +1024,7 @@ restart_loop:
 
 		case command == "debug":
 
-			log_level := config.LogLevel
+			log_level := config.RunningConfig.LogLevel
 			if len(line_parts) == 2 {
 
 				i, err := strconv.ParseInt(line_parts[1], 10, 64)
@@ -965,7 +1035,7 @@ restart_loop:
 				}
 
 			} else {
-				if config.LogLevel > 0 {
+				if config.RunningConfig.LogLevel > 0 {
 					log_level = 0
 				} else {
 					log_level = 1
@@ -993,6 +1063,23 @@ restart_loop:
 					p2p.Ban_Above_Height(height)
 				}
 			}
+		case command == "address_to_name":
+
+			if len(line_parts) == 2 {
+				result, err := derodrpc.AddressToName(nil, rpc.AddressToName_Params{Address: line_parts[1], TopoHeight: -1})
+
+				if err == nil {
+					fmt.Printf("Address: %s has following names:\n", line_parts[1])
+					for _, name := range result.Names {
+						fmt.Printf("\t%s\n", name)
+					}
+					fmt.Print("\n")
+				} else {
+					fmt.Printf("Something went wrong, could not look up name address: %s (%s)\n", line_parts[1], err.Error())
+				}
+			} else {
+				fmt.Printf("usage: address_to_name <wallet address>\n")
+			}
 
 		case command == "connecto_to_peer":
 
@@ -1002,6 +1089,74 @@ restart_loop:
 			} else {
 				fmt.Printf("usage: connecto_to_peer <ip address:port>\n")
 			}
+
+		case command == "miner_info":
+
+			if len(line_parts) == 2 {
+				derodrpc.ShowMinerInfo(line_parts[1])
+			} else {
+				fmt.Printf("usage: miner_info <wallet address/ip>\n")
+			}
+
+		case command == "list_miners":
+
+			derodrpc.ListMiners()
+
+		case command == "orphaned_blocks":
+
+			fmt.Print("Orphan Blocks List\n\n")
+
+			fmt.Printf("%-72s %-32s %-12s %s\n\n", "Wallet", "IP Address", "Height", "Block")
+
+			count := 0
+			for miner, _ := range block.MyOrphanBlocks {
+
+				wallet := derodrpc.GetMinerWallet(miner)
+
+				for _, mbl := range block.MyOrphanBlocks[miner] {
+					hash, err := chain.Load_Block_Topological_order_at_index(int64(mbl.Height))
+					if err != nil {
+						fmt.Printf("Skipping block at topo height %d due to error %s\n", mbl.Height, err)
+
+					} else {
+
+						fmt.Printf("%-72s %-32s %-12d %s\n", wallet, miner, mbl.Height, hash)
+					}
+					count++
+
+				}
+			}
+
+			fmt.Printf("Orphan Blocks Collection Size: %d\n", count)
+			fmt.Print("\n")
+
+		case command == "mined_blocks":
+
+			fmt.Print("Mined Blocks List\n\n")
+
+			fmt.Printf("%-72s %-32s %-12s %s\n\n", "Wallet", "IP Address", "Height", "Block")
+
+			count := 0
+			for miner, block_list := range block.MyBlocks {
+
+				wallet := derodrpc.GetMinerWallet(miner)
+
+				for _, mbl := range block_list {
+					hash, err := chain.Load_Block_Topological_order_at_index(int64(mbl.Height))
+					if err != nil {
+						fmt.Printf("Skipping block at topo height %d - likely not committed yet\n", mbl.Height)
+
+					} else {
+
+						fmt.Printf("%-72s %-32s %-12d %s\n", wallet, miner, mbl.Height, hash)
+					}
+					count++
+				}
+
+			}
+
+			fmt.Printf("Mined Blocks Collection Size: %d\n", count)
+			fmt.Print("\n")
 
 		case command == "peer_info":
 
@@ -1031,7 +1186,7 @@ restart_loop:
 					if err != nil {
 						io.WriteString(l.Stderr(), "bw factor need to be number\n")
 					} else {
-						config.P2PBWFactor = i
+						config.RunningConfig.P2PBWFactor = i
 					}
 				}
 				if line_parts[1] == "min_peers" && len(line_parts) == 3 {
@@ -1043,6 +1198,8 @@ restart_loop:
 						if p2p.Max_Peers < p2p.Min_Peers {
 							p2p.Max_Peers = p2p.Min_Peers
 						}
+						config.RunningConfig.Min_Peers = p2p.Min_Peers
+						config.RunningConfig.Max_Peers = p2p.Max_Peers
 					}
 				}
 
@@ -1051,7 +1208,7 @@ restart_loop:
 					if err != nil {
 						io.WriteString(l.Stderr(), "peer_log_expiry time need to be in seconds\n")
 					} else {
-						globals.ErrorLogExpirySeconds = i
+						config.RunningConfig.ErrorLogExpirySeconds = i
 
 					}
 				}
@@ -1061,7 +1218,7 @@ restart_loop:
 					if err != nil {
 						io.WriteString(l.Stderr(), "diagnostic_delay in seconds\n")
 					} else {
-						config.DiagnosticCheckDelay = i
+						config.RunningConfig.DiagnosticCheckDelay = i
 
 					}
 				}
@@ -1071,7 +1228,7 @@ restart_loop:
 					if err != nil {
 						io.WriteString(l.Stderr(), "block_reject_threshold in seconds\n")
 					} else {
-						config.BlockRejectThreshold = i
+						config.RunningConfig.BlockRejectThreshold = i
 
 					}
 				}
@@ -1081,7 +1238,7 @@ restart_loop:
 					if err != nil {
 						io.WriteString(l.Stderr(), "peer_latency_threshold in seconds\n")
 					} else {
-						config.PeerLatencyThreshold = time.Duration(i * int64(time.Millisecond))
+						config.RunningConfig.PeerLatencyThreshold = time.Duration(i * int64(time.Millisecond))
 					}
 				}
 
@@ -1090,46 +1247,47 @@ restart_loop:
 					if err != nil {
 						io.WriteString(l.Stderr(), "dispatch time need to be in miliseconds\n")
 					} else {
-						config.GETWorkJobDispatchTime = time.Duration(i * int64(time.Millisecond))
+						config.RunningConfig.GETWorkJobDispatchTime = time.Duration(i * int64(time.Millisecond))
 
 					}
 				}
 
 				if line_parts[1] == "trusted" {
-					if config.OnlyTrusted {
-						config.OnlyTrusted = false
+					if config.RunningConfig.OnlyTrusted {
+						config.RunningConfig.OnlyTrusted = false
 					} else {
-						config.OnlyTrusted = true
+						config.RunningConfig.OnlyTrusted = true
 						p2p.Only_Trusted_Peers()
 					}
 				}
 
 				if line_parts[1] == "p2p_turbo" {
-					if config.P2PTurbo {
-						config.P2PTurbo = false
+					if config.RunningConfig.P2PTurbo {
+						config.RunningConfig.P2PTurbo = false
 					} else {
-						config.P2PTurbo = true
+						config.RunningConfig.P2PTurbo = true
 					}
 				}
 				if line_parts[1] == "whitelist_incoming" {
 
-					if config.WhitelistIncoming {
-						config.WhitelistIncoming = false
+					if config.RunningConfig.WhitelistIncoming {
+						config.RunningConfig.WhitelistIncoming = false
 					} else {
-						config.WhitelistIncoming = true
+						config.RunningConfig.WhitelistIncoming = true
 					}
 				}
 				if line_parts[1] == "operator" && len(line_parts) == 3 {
-					config.OperatorName = line_parts[2]
+					config.RunningConfig.OperatorName = line_parts[2]
 				}
+				save_config_file()
 			}
 
 			io.WriteString(l.Stdout(), " Config Menu\n\n")
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n\n", "Option", "Value", "How to change"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Operator Name", config.OperatorName, "config operator <name>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Operator Name", config.RunningConfig.OperatorName, "config operator <name>"))
 			whitelist_incoming := "YES"
-			if !config.WhitelistIncoming {
+			if !config.RunningConfig.WhitelistIncoming {
 				whitelist_incoming = "no"
 			}
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Whitelist Incoming Peers", whitelist_incoming, "config whitelist_incoming"))
@@ -1137,27 +1295,27 @@ restart_loop:
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P Min Peers", p2p.Min_Peers, "config min_peers <num>"))
 
 			turbo := "off"
-			if config.P2PTurbo {
+			if config.RunningConfig.P2PTurbo {
 				turbo = "ON"
 			}
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "P2P Turbo", turbo, "config p2p_turbo"))
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P BW Factor", config.P2PBWFactor, "config p2p_bwfactor <num>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "P2P BW Factor", config.RunningConfig.P2PBWFactor, "config p2p_bwfactor <num>"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "GETWORK - Job will be dispatch time", config.GETWorkJobDispatchTime, "config job_dispatch_time <miliseconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "GETWORK - Job will be dispatch time", config.RunningConfig.GETWorkJobDispatchTime, "config job_dispatch_time <miliseconds>"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Peer Log Expiry (sec)", globals.ErrorLogExpirySeconds, "config peer_log_expiry <seconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Peer Log Expiry (sec)", config.RunningConfig.ErrorLogExpirySeconds, "config peer_log_expiry <seconds>"))
 
 			trusted_only := "OFF"
-			if config.OnlyTrusted {
+			if config.RunningConfig.OnlyTrusted {
 				trusted_only = "ON"
 			}
 			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Connect to Trusted Only", trusted_only, "config trusted"))
 
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Auto run diagnostic sequence every (seconds)", config.DiagnosticCheckDelay, "config diagnostic_delay <seconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Auto run diagnostic sequence every (seconds)", config.RunningConfig.DiagnosticCheckDelay, "config diagnostic_delay <seconds>"))
 
 			io.WriteString(l.Stdout(), fmt.Sprintf("\n\tDiagnostic Thresholds - use (run_diagnostic) to test\n"))
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Block Transmission Success Rate Threshold", config.BlockRejectThreshold, "config block_reject_threshold <seconds>"))
-			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Peer Latency Threshold (Miliseconds)", time.Duration(config.PeerLatencyThreshold).Round(time.Millisecond).String(), "config peer_latency_threshold <seconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20d %-20s\n", "Block Transmission Success Rate Threshold", config.RunningConfig.BlockRejectThreshold, "config block_reject_threshold <seconds>"))
+			io.WriteString(l.Stdout(), fmt.Sprintf("\t%-60s %-20s %-20s\n", "Peer Latency Threshold (Miliseconds)", time.Duration(config.RunningConfig.PeerLatencyThreshold).Round(time.Millisecond).String(), "config peer_latency_threshold <seconds>"))
 
 			io.WriteString(l.Stdout(), "\n")
 
@@ -1212,6 +1370,10 @@ restart_loop:
 			} else {
 				fmt.Printf("usage: clear_peer_stats <ip address>\n")
 			}
+
+		case command == "list_all_connections": // print peer list
+
+			go p2p.ListAllConnections()
 
 		case command == "peer_list": // print peer list
 
@@ -1350,6 +1512,16 @@ restart_loop:
 				fmt.Printf("err unbanning %s, err = %s", line_parts[1], err)
 			} else {
 				fmt.Printf("unbann %s successful", line_parts[1])
+			}
+
+		case command == "connect_to_peer":
+
+			if len(line_parts) == 2 {
+
+				logger.Info(fmt.Sprintf("Connecting to: %s", line_parts[1]))
+				go p2p.ConnecToNode(line_parts[1])
+			} else {
+				fmt.Printf("usage: clear_peer_stats <ip address>\n")
 			}
 
 		case command == "connect_to_seeds":
@@ -1527,6 +1699,12 @@ func usage(w io.Writer) {
 	io.WriteString(w, "\t\033[1mconnect_to_hansen\033[0m\tConnect to Hansen nodes\n")
 	io.WriteString(w, "\t\033[1mconnect_to_seeds\033[0m\tConnect to all seed nodes (see status in list_trusted)\n")
 	io.WriteString(w, "\t\033[1mconnect_to_peer\033[0m\tConnect to any peer using - connect_to_peer <ip:p2p-port>\n")
+	io.WriteString(w, "\t\033[1mlist_miners\033[0m\tShow Connected Miners\n")
+	io.WriteString(w, "\t\033[1mminer_info\033[0m\tDetailed miner info - miner_info <wallet>\n")
+	io.WriteString(w, "\t\033[1mmined_blocks\033[0m\tList Mined Blocks\n")
+	io.WriteString(w, "\t\033[1morphaned_blocks\033[0m\tList Our Orphaned Blocks\n")
+	io.WriteString(w, "\t\033[1maddress_to_name\033[0m\tLookup registered names for Address\n")
+	io.WriteString(w, "\t\033[1mlist_all_connections\033[0m\tList All Connection\n")
 
 }
 
@@ -1571,6 +1749,12 @@ var completer = readline.NewPrefixCompleter(
 	readline.PcItem("list_trusted"),
 	readline.PcItem("connect_to_peer"),
 	readline.PcItem("connect_to_seeds"),
+	readline.PcItem("list_miners"),
+	readline.PcItem("miner_info"),
+	readline.PcItem("mined_blocks"),
+	readline.PcItem("orphaned_blocks"),
+	readline.PcItem("address_to_name"),
+	readline.PcItem("list_all_connections"),
 )
 
 func filterInput(r rune) (rune, bool) {

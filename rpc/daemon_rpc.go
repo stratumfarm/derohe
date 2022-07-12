@@ -317,15 +317,23 @@ type (
 		PeerLatency                int64   `json:"peer_latency"`
 		Version                    string  `json:"version"`
 
-		Miners               int   `json:"connected_miners"`
-		Miniblocks_In_Memory int   `json:"miniblocks_in_memory"`
-		RemotePopBlockCount  int64 `json:"remote_pop_block_count"`
+		Miners                       int     `json:"connected_miners"`
+		Miniblocks_In_Memory         int     `json:"miniblocks_in_memory"`
+		NetworkBlockRateOrphan       int     `json:"network_orphan_10min"`
+		NetworkBlockRateOrphan100    float64 `json:"network_orphan_100"`
+		NetworkBlockRateMined        int     `json:"network_miniblocks_10min"`
+		OrphanBlockRate              float64 `json:"network_orphan_miniblock_rate_10min"`
+		RemotePopBlockCount          int64   `json:"remote_pop_block_count"`
+		SameHeightChainExtendedCount int     `json:"same_height_chain_extended_count"`
 
-		CountBlocks        int64   `json:"blocks_count"`
-		CountMinisAccepted int64   `json:"miniblocks_accepted_count"`
-		CountMinisRejected int64   `json:"miniblocks_rejected_count"`
-		Mining_Velocity    float64 `json:"mining_velocity"`
-		Uptime             uint64  `json:"uptime"`
+		CountBlocks           int64   `json:"blocks_count"`
+		CountMinisAccepted    int64   `json:"miniblocks_accepted_count"`
+		CountMinisRejected    int64   `json:"miniblocks_rejected_count"`
+		CountMinisOrphaned    int64   `json:"miniblocks_orphaned_count"`
+		MintingSuccessRate    float64 `json:"minting_success_rate"`
+		Minting_Velocity_1hr  float64 `json:"minting_velocity_1hr"`
+		Minting_Velocity_1day float64 `json:"minting_velocity_1day"`
+		Uptime                uint64  `json:"uptime"`
 
 		HashrateEstimatePercent_1hr  uint64 `json:"hashrate_1hr"`
 		HashrateEstimatePercent_1day uint64 `json:"hashrate_1d"`
