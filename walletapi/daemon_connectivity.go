@@ -49,6 +49,27 @@ type Client struct {
 	RPC *jrpc2.Client
 }
 
+var SocksProxyURL string
+
+func MyProxyURL(*http.Request) (u *url.URL, err error) {
+
+	if SocksProxyURL != "" {
+		u, err = url.Parse(fmt.Sprintf("socks5://%s", SocksProxyURL))
+	} else {
+
+		is_onion := regexp.MustCompile(`\.onion:(\d){5}$`)
+
+		Daemon_Endpoint_Active := get_daemon_address()
+
+		if is_onion.MatchString(Daemon_Endpoint_Active) {
+			logger.Info("Tor Onion URL detected, using TOR Socks at localhost:9050")
+			u, err = url.Parse("socks5://127.0.0.1:9050")
+		}
+	}
+
+	return u, err
+}
+
 var rpc_client = &Client{}
 
 // this is as simple as it gets
@@ -80,6 +101,7 @@ func Connect(endpoint string) (err error) {
 	}
 
 	dialer := websocket.DefaultDialer
+	dialer.Proxy = MyProxyURL
 	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}

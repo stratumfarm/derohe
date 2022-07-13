@@ -4,3 +4,4 @@ cmd/dero-wallet-cli/dero-wallet-cli
 cmd/*/*.log
 cmd/*/history/
 cmd/*/history/*
+cmd/dero-wallet-cli/*.db*
