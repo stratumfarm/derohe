@@ -59,9 +59,11 @@ var max_pow_size int = 819200 //astrobwt.MAX_LENGTH
 var wallet_address string
 var daemon_rpc_address string
 
+var TextMode bool = false
 var ModdedNode bool = false
 var mining_speed float64
 var miner_tag string
+var miner_started = time.Now().Unix()
 
 var counter uint64
 var hash_rate uint64
@@ -80,7 +82,7 @@ ONE CPU, ONE VOTE.
 http://wiki.dero.io
 
 Usage:
-  dero-miner  --wallet-address=<wallet_address> [--daemon-rpc-address=<dero-node.mysrv.cloud:10100>] [--mining-threads=<threads>] [--testnet] [--debug] [--tag=<tag>] [--hiveos]
+  dero-miner  --wallet-address=<wallet_address> [--daemon-rpc-address=<dero-node.mysrv.cloud:10100>] [--mining-threads=<threads>] [--testnet] [--debug] [--tag=<tag>] [--text-mode]
   dero-miner --bench 
   dero-miner -h | --help
   dero-miner --version
@@ -111,24 +113,6 @@ func main() {
 		return
 	}
 
-	// We need to initialize readline first, so it changes stderr to ansi processor on windows
-
-	l, err := readline.NewEx(&readline.Config{
-		//Prompt:          "\033[92mDERO:\033[32m»\033[0m",
-		Prompt:          "\033[92mDERO Miner:\033[32m>>>\033[0m ",
-		HistoryFile:     filepath.Join(os.TempDir(), "dero_miner_readline.tmp"),
-		AutoComplete:    completer,
-		InterruptPrompt: "^C",
-		EOFPrompt:       "exit",
-
-		HistorySearchFold:   true,
-		FuncFilterInputRune: filterInput,
-	})
-	if err != nil {
-		panic(err)
-	}
-	defer l.Close()
-
 	// parse arguments and setup logging , print basic information
 	exename, _ := os.Executable()
 	f, err := os.Create(exename + ".log")
@@ -136,7 +120,34 @@ func main() {
 		fmt.Printf("Error while opening log file err: %s filename %s\n", err, exename+".log")
 		return
 	}
-	globals.InitializeLog(l.Stdout(), f)
+
+	var l *readline.Instance
+	if !TextMode {
+
+		// We need to initialize readline first, so it changes stderr to ansi processor on windows
+
+		l, err := readline.NewEx(&readline.Config{
+			//Prompt:          "\033[92mDERO:\033[32m»\033[0m",
+			Prompt:          "\033[92mDERO Miner:\033[32m>>>\033[0m ",
+			HistoryFile:     filepath.Join(os.TempDir(), "dero_miner_readline.tmp"),
+			AutoComplete:    completer,
+			InterruptPrompt: "^C",
+			EOFPrompt:       "exit",
+
+			HistorySearchFold:   true,
+			FuncFilterInputRune: filterInput,
+		})
+		if err != nil {
+			panic(err)
+		}
+		defer l.Close()
+
+		globals.InitializeLog(l.Stdout(), f)
+
+	} else {
+		globals.InitializeLog(os.Stdout, f)
+	}
+
 	logger = globals.Logger.WithName("miner")
 
 	logger.Info("DERO Stargate HE AstroBWT miner : It is an alpha version, use it for testing/evaluations purpose only.")
@@ -185,6 +196,10 @@ func main() {
 		if threads > runtime.GOMAXPROCS(0) {
 			logger.Info("Mining threads is more than available CPUs. This is NOT optimal", "thread_count", threads, "max_possible", runtime.GOMAXPROCS(0))
 		}
+	}
+
+	if globals.Arguments["--text-mode"].(bool) {
+		TextMode = true
 	}
 
 	if globals.Arguments["--bench"].(bool) {
@@ -293,12 +308,17 @@ func main() {
 					testnet_string = "\033[31m TESTNET"
 				}
 
-				if ModdedNode {
-					l.SetPrompt(fmt.Sprintf("\033[1m\033[32mDERO Miner: \033[0m"+color+"Height %d "+pcolor+" BLOCKS %d MiniBlocks %d Orphans %d Rejected %d \033[32mNW %s %s>%s>>\033[0m ", our_height, block_counter, mini_block_counter, orphan_block_counter, rejected, hash_rate_string, mining_string, testnet_string))
-				} else {
-					l.SetPrompt(fmt.Sprintf("\033[1m\033[32mDERO Miner: \033[0m"+color+"Height %d "+pcolor+" BLOCKS %d MiniBlocks %d Rejected %d \033[32mNW %s %s>%s>>\033[0m ", our_height, block_counter, mini_block_counter, rejected, hash_rate_string, mining_string, testnet_string))
+				uptime := (time.Now().Unix() - miner_started)
+				if TextMode && (uptime%60 == 0 || uptime == 10) {
+					fmt.Printf("DERO Miner: Height %d BLOCKS %d MiniBlocks %d Rejected %d NW %s %s Uptime: %d\n", our_height, block_counter, mini_block_counter, rejected, hash_rate_string, mining_string, uptime)
+				} else if !TextMode {
+					if ModdedNode {
+						l.SetPrompt(fmt.Sprintf("\033[1m\033[32mDERO Miner: \033[0m"+color+"Height %d "+pcolor+" BLOCKS %d MiniBlocks %d Orphans %d Rejected %d \033[32mNW %s %s>%s>>\033[0m ", our_height, block_counter, mini_block_counter, orphan_block_counter, rejected, hash_rate_string, mining_string, testnet_string))
+					} else {
+						l.SetPrompt(fmt.Sprintf("\033[1m\033[32mDERO Miner: \033[0m"+color+"Height %d "+pcolor+" BLOCKS %d MiniBlocks %d Rejected %d \033[32mNW %s %s>%s>>\033[0m ", our_height, block_counter, mini_block_counter, rejected, hash_rate_string, mining_string, testnet_string))
+					}
+					l.Refresh()
 				}
-				l.Refresh()
 				last_our_height = our_height
 				last_best_height = best_height
 			}
@@ -306,7 +326,9 @@ func main() {
 		}
 	}()
 
-	l.Refresh() // refresh the prompt
+	if !TextMode {
+		l.Refresh() // refresh the prompt
+	}
 
 	go func() {
 		var gracefulStop = make(chan os.Signal, 1)
@@ -352,53 +374,55 @@ func main() {
 		go mineblock(i)
 	}
 
-	for {
-		line, err := l.Readline()
-		if err == readline.ErrInterrupt {
-			if len(line) == 0 {
-				fmt.Print("Ctrl-C received, Exit in progress\n")
+	if !TextMode {
+		for {
+			line, err := l.Readline()
+			if err == readline.ErrInterrupt {
+				if len(line) == 0 {
+					fmt.Print("Ctrl-C received, Exit in progress\n")
+					close(Exit_In_Progress)
+					os.Exit(0)
+					break
+				} else {
+					continue
+				}
+			} else if err == io.EOF {
+				<-Exit_In_Progress
+				break
+			}
+
+			line = strings.TrimSpace(line)
+			line_parts := strings.Fields(line)
+
+			command := ""
+			if len(line_parts) >= 1 {
+				command = strings.ToLower(line_parts[0])
+			}
+
+			switch {
+			case line == "help":
+				usage(l.Stderr())
+
+			case strings.HasPrefix(line, "say"):
+				line := strings.TrimSpace(line[3:])
+				if len(line) == 0 {
+					fmt.Println("say what?")
+					break
+				}
+			case command == "version":
+				fmt.Printf("Version %s OS:%s ARCH:%s \n", config.Version.String(), runtime.GOOS, runtime.GOARCH)
+
+			case strings.ToLower(line) == "bye":
+				fallthrough
+			case strings.ToLower(line) == "exit":
+				fallthrough
+			case strings.ToLower(line) == "quit":
 				close(Exit_In_Progress)
 				os.Exit(0)
-				break
-			} else {
-				continue
+			case line == "":
+			default:
+				fmt.Println("you said:", strconv.Quote(line))
 			}
-		} else if err == io.EOF {
-			<-Exit_In_Progress
-			break
-		}
-
-		line = strings.TrimSpace(line)
-		line_parts := strings.Fields(line)
-
-		command := ""
-		if len(line_parts) >= 1 {
-			command = strings.ToLower(line_parts[0])
-		}
-
-		switch {
-		case line == "help":
-			usage(l.Stderr())
-
-		case strings.HasPrefix(line, "say"):
-			line := strings.TrimSpace(line[3:])
-			if len(line) == 0 {
-				fmt.Println("say what?")
-				break
-			}
-		case command == "version":
-			fmt.Printf("Version %s OS:%s ARCH:%s \n", config.Version.String(), runtime.GOOS, runtime.GOARCH)
-
-		case strings.ToLower(line) == "bye":
-			fallthrough
-		case strings.ToLower(line) == "exit":
-			fallthrough
-		case strings.ToLower(line) == "quit":
-			close(Exit_In_Progress)
-			os.Exit(0)
-		case line == "":
-		default:
-			fmt.Println("you said:", strconv.Quote(line))
 		}
 	}
 

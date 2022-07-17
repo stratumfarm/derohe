@@ -263,6 +263,7 @@ func (c *Connection) processChunkedBlock(request Objects, data_shard_count, pari
 		go LogAccept(c.Addr.String())
 
 	} else { // ban the peer for sometime
+		c.logger.Error(err, "Error adding block from peer...")
 		go PeerLogReceiveFail(c.Addr.String(), "Add_Complete_Block", c.Peer_ID, err.Error())
 		go LogReject(c.Addr.String())
 		if err == errormsg.ErrInvalidPoW {

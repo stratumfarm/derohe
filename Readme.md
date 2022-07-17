@@ -3,7 +3,7 @@
 If you don't alredy know DERO - Check out [Dero git repo](https://github.com/deroproject/derohe)
 
 * This is a Weaponized version of Dero Daemon, this is NOT the official release of DERO.
-* Please use with causion, as with all weapons you may or may not hurt your self using this.
+* Please use with caution, as with all weapons you may or may not hurt yourself or others using this.
 * If all your minis get lost or your computer blows up, it's no my fault, you installed this.
 
 
@@ -13,7 +13,7 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
 
 ### Developers
 
- * @Hansen333
+ * @Hansen33
    * Address: dero1qy07h9mk6xxf2k4x0ymdpezvksjy0talskhpvqmat3xk3d9wczg5jqqvwl0sn
  * @arodd
    * Address: dero1qyss8jkqfkvp4vlxfx3l7f9rr7m55ff3q633ag8xemzv0el90m2j2qqy0te2c
@@ -24,6 +24,8 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
 
  More Options, switches and buttons 
  
+ * TOR Support in Wallet (--daemon-address )
+ * BlocksIn/BlocksOut count in syncinfo - repurposed unused official counters
  * AddressToName - command to look up names inside derod (using HarkerK code)
  * Allow more than 31 incoming peers (will use max_peer option as limit)
  * Miners list and mining performance stats

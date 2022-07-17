@@ -468,6 +468,9 @@ func SendJob() {
 			params.Blockhashing_blob = fmt.Sprintf("%x", mbl.Serialize())
 			params.Blocks = v.blocks
 			params.MiniBlocks = v.miniblocks
+			if v.hashrate < 1 { // if not a hansen mod miner, then deduct orphan from mined blocks
+				params.MiniBlocks = v.miniblocks - v.orphans
+			}
 			params.Rejected = v.rejected
 			params.Orphans = v.orphans
 
