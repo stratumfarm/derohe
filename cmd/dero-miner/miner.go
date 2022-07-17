@@ -126,7 +126,7 @@ func main() {
 
 		// We need to initialize readline first, so it changes stderr to ansi processor on windows
 
-		l, err := readline.NewEx(&readline.Config{
+		l, err = readline.NewEx(&readline.Config{
 			//Prompt:          "\033[92mDERO:\033[32m»\033[0m",
 			Prompt:          "\033[92mDERO Miner:\033[32m>>>\033[0m ",
 			HistoryFile:     filepath.Join(os.TempDir(), "dero_miner_readline.tmp"),
@@ -282,7 +282,7 @@ func main() {
 						mining_string = fmt.Sprintf("MINING @ %.3f MH/s", float32(mining_speed)/1000000.0)
 					case mining_speed > 1000:
 						mining_string = fmt.Sprintf("MINING @ %.3f KH/s", float32(mining_speed)/1000.0)
-					case mining_speed > 0:
+					case mining_speed >= 0:
 						mining_string = fmt.Sprintf("MINING @ %.0f H/s", mining_speed)
 					}
 				}
@@ -309,7 +309,7 @@ func main() {
 				}
 
 				uptime := (time.Now().Unix() - miner_started)
-				if TextMode && (uptime%60 == 0 || uptime == 10) {
+				if TextMode && (uptime%60 == 0 || (uptime <= 10)) {
 					fmt.Printf("DERO Miner: Height %d BLOCKS %d MiniBlocks %d Rejected %d NW %s %s Uptime: %d\n", our_height, block_counter, mini_block_counter, rejected, hash_rate_string, mining_string, uptime)
 				} else if !TextMode {
 					if ModdedNode {
@@ -505,11 +505,13 @@ func getwork(wallet_address string) {
 			if job.Hansen33Mod {
 				logger.Info("Hansen33 Mod Mining Node Detected - Happy Mining")
 				orphan_block_counter = job.Orphans
-			} else {
-				logger.Info("Official Mining Node Detected - Happy Mining")
 			}
 		}
 		ModdedNode = job.Hansen33Mod
+
+		if !ModdedNode && job_counter == 1 {
+			logger.Info("Official Mining Node Detected - Happy Mining")
+		}
 
 		//fmt.Printf("recv: %+v diff %d\n", result, Difficulty)
 		goto wait_for_another_job
