@@ -9,7 +9,7 @@ require (
 	github.com/caarlos0/env/v6 v6.9.3
 	github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984
 	github.com/cespare/xxhash v1.1.0
-	github.com/chzyer/readline v1.5.0
+	github.com/chzyer/readline v1.5.1
 	github.com/creachadair/jrpc2 v0.36.0
 	github.com/dchest/siphash v1.2.3
 	github.com/deroproject/graviton v0.0.0-20220130070622-2c248a53b2e1
