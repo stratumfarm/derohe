@@ -100,11 +100,9 @@ func IsBlockOrphan(block_hash string) bool {
 	defer orphan_block_count_mutex.Unlock()
 
 	_, x := OrphanBlocks[block_hash]
-	if x {
-		return true
-	}
 
-	return false
+	return x
+
 }
 
 // purge all heights less than this height
@@ -114,6 +112,9 @@ func (c *MiniBlocksCollection) PurgeHeight(minis []MiniBlock, height int64) (pur
 	}
 	c.Lock()
 	defer c.Unlock()
+
+	orphan_block_count_mutex.Lock()
+	defer orphan_block_count_mutex.Unlock()
 
 	for k, _ := range c.Collection {
 		if k.Height <= uint64(height) {
@@ -144,12 +145,11 @@ func (c *MiniBlocksCollection) PurgeHeight(minis []MiniBlock, height int64) (pur
 					if !match {
 
 						// Log lost minis
-						orphan_block_count_mutex.Lock()
+
 						i := time.Now()
-						OrphanMiniCounterMap[fmt.Sprintf("%s", mbl.GetHash())] = i
-						OrphanMiniCounter100[fmt.Sprintf("%s", mbl.GetHash())] = height
-						OrphanBlocks[fmt.Sprintf("%s", mbl.GetHash())] = height
-						orphan_block_count_mutex.Unlock()
+						OrphanMiniCounterMap[mbl.GetHash().String()] = i
+						OrphanMiniCounter100[mbl.GetHash().String()] = height
+						OrphanBlocks[mbl.GetHash().String()] = height
 
 						miner_mini_mutex.Lock()
 						// Check my minis, if any are orphaned
@@ -229,7 +229,7 @@ func (c *MiniBlocksCollection) InsertMiniBlock(mbl MiniBlock) (err error, result
 
 	orphan_block_count_mutex.Lock()
 	i := time.Now()
-	MiniBlockCounterMap[fmt.Sprintf("%s", mbl.GetHash())] = i
+	MiniBlockCounterMap[mbl.GetHash().String()] = i
 	orphan_block_count_mutex.Unlock()
 
 	c.Collection[mbl.GetKey()] = append(c.Collection[mbl.GetKey()], mbl)
