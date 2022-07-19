@@ -46,8 +46,10 @@ var MyOrphanBlocks = make(map[string][]MiniBlock)
 
 func AddBlockToMyCollection(mbl MiniBlock, miner string) {
 	miner_mini_mutex.Lock()
+	defer miner_mini_mutex.Unlock()
+
 	MyBlocks[miner] = append(MyBlocks[miner], mbl)
-	miner_mini_mutex.Unlock()
+
 }
 
 var LastPurgeHeight uint64 = 0
@@ -55,6 +57,41 @@ var MiniBlockCounterMap = make(map[string]time.Time)
 var OrphanMiniCounterMap = make(map[string]time.Time)
 var OrphanMiniCounter100 = make(map[string]int64)
 var OrphanBlocks = make(map[string]int64)
+
+func GetMyOrphansList() map[string]map[string]uint64 {
+
+	miner_mini_mutex.Lock()
+	defer miner_mini_mutex.Unlock()
+
+	var OrphanList = make(map[string]map[string]uint64)
+
+	for miner, _ := range MyOrphanBlocks {
+
+		var stat = make(map[string]uint64)
+
+		for _, mbl := range MyOrphanBlocks[miner] {
+
+			stat[mbl.GetHash().String()] = mbl.Height
+
+			OrphanList[miner] = stat
+		}
+	}
+
+	return OrphanList
+}
+
+func GetMinerOrphanCount(Address string) uint64 {
+
+	miner_mini_mutex.Lock()
+	defer miner_mini_mutex.Unlock()
+
+	_, found := MyOrphanBlocks[Address]
+	if found {
+		return uint64(len(MyOrphanBlocks[Address]))
+	}
+
+	return 0
+}
 
 func BlockRateCount(height int64) (int, int, float64, int) {
 

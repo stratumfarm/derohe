@@ -1310,19 +1310,21 @@ restart_loop:
 
 			fmt.Printf("%-72s %-32s %-12s %s\n\n", "Wallet", "IP Address", "Height", "Block")
 
+			MyOrphanBlocks := block.GetMyOrphansList()
+
 			count := 0
-			for miner, _ := range block.MyOrphanBlocks {
+			for miner, _ := range MyOrphanBlocks {
 
 				wallet := derodrpc.GetMinerWallet(miner)
 
-				for _, mbl := range block.MyOrphanBlocks[miner] {
-					hash, err := chain.Load_Block_Topological_order_at_index(int64(mbl.Height))
+				for _, height := range MyOrphanBlocks[miner] {
+					hash, err := chain.Load_Block_Topological_order_at_index(int64(height))
 					if err != nil {
-						fmt.Printf("Skipping block at topo height %d due to error %s\n", mbl.Height, err)
+						fmt.Printf("Skipping block at topo height %d due to error %s\n", height, err)
 
 					} else {
 
-						fmt.Printf("%-72s %-32s %-12d %s\n", wallet, miner, mbl.Height, hash)
+						fmt.Printf("%-72s %-32s %-12d %s\n", wallet, miner, height, hash)
 					}
 					count++
 

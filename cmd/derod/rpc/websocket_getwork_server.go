@@ -188,10 +188,11 @@ func UpdateMinerStats() {
 
 	for conn, sess := range client_list {
 
+		conn_address := conn.RemoteAddr().String()
 		unique_miners[sess.address.String()]++
 
 		for addr, stat := range miner_stats {
-			if addr != conn.RemoteAddr().String() && stat.tag == sess.tag && len(sess.tag) > 0 {
+			if addr != conn_address && stat.tag == sess.tag && len(sess.tag) > 0 {
 				sess.blocks += stat.blocks
 				sess.miniblocks += stat.miniblocks
 				sess.orphans += stat.orphaned
@@ -200,7 +201,7 @@ func UpdateMinerStats() {
 		}
 
 		// use address with port for uniqueness - could have more than one miner behind same IP but mining to different addresses
-		i := miner_stats[conn.RemoteAddr().String()]
+		i := miner_stats[conn_address]
 
 		i.blocks = sess.blocks
 		i.miniblocks = sess.miniblocks
@@ -211,19 +212,16 @@ func UpdateMinerStats() {
 			i.lasterr = sess.lasterr
 		}
 
-		_, found := block.MyOrphanBlocks[conn.RemoteAddr().String()]
-		if found {
-			i.orphaned = uint64(len(block.MyOrphanBlocks[conn.RemoteAddr().String()]))
-			sess.orphans = i.orphaned
-		} else {
-			sess.orphans = 0
-			i.orphaned = 0
-		}
+		orphan_count := block.GetMinerOrphanCount(conn_address)
+
+		i.orphaned = orphan_count
+		sess.orphans = orphan_count
+
 		client_list[conn] = sess
-		i.address = fmt.Sprintf("%s", sess.address)
+		i.address = sess.address.String()
 
-		miner_stats[conn.RemoteAddr().String()] = i
-
+		miner_stats[conn_address] = i
+		client_list[conn] = sess
 	}
 
 	CountUniqueMiners = int64(len(unique_miners))
@@ -231,10 +229,8 @@ func UpdateMinerStats() {
 	// reset counter
 	CountMinisOrphaned = 0
 	for miner := range miner_stats {
-		_, found := block.MyOrphanBlocks[miner]
-		if found {
-			CountMinisOrphaned += int64(len(block.MyOrphanBlocks[miner]))
-		}
+		orphan_count := block.GetMinerOrphanCount(miner)
+		CountMinisOrphaned += int64(orphan_count)
 	}
 
 	globals.BlocksMined = (CountMinisAccepted + CountBlocks) - CountMinisOrphaned
@@ -326,14 +322,10 @@ type miner_counter struct {
 	orphaned         uint64
 	is_connected     string
 	hashrate         float64
-	tag              string
-	address          rpc.Address
 	lasterr          string
 }
 
 func ListMiners() {
-
-	UpdateMinerStats()
 
 	var miners = make(map[string]miner_counter)
 
@@ -342,7 +334,7 @@ func ListMiners() {
 	defer miner_stats_mutex.Unlock()
 
 	for ip_address, stat := range miner_stats {
-		i := miners[fmt.Sprintf("%s", stat.address)]
+		i := miners[stat.address]
 
 		i.blocks += stat.blocks
 		i.miniblocks += stat.miniblocks
@@ -363,7 +355,7 @@ func ListMiners() {
 		} else if i.is_connected != "yes" {
 			i.is_connected = "no"
 		}
-		miners[fmt.Sprintf("%s", stat.address)] = i
+		miners[stat.address] = i
 	}
 
 	fmt.Print("Connected Miners\n\n")
