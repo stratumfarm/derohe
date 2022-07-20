@@ -133,6 +133,8 @@ func (c *Connection) exit() {
 // add connection to  map
 func Connection_Delete(c *Connection) {
 
+	duplicate_connection_mutex.Lock()
+	defer duplicate_connection_mutex.Unlock()
 	ip_str, x := ConnectDuplicatioMap[ParseIPNoError(c.Addr.String())]
 	if x {
 		if ip_str == c.Addr.String() {
@@ -206,9 +208,12 @@ func IsAddressConnected(address string) bool {
 var connection_counter int = 0
 
 var ConnectDuplicatioMap = make(map[string]string)
+var duplicate_connection_mutex sync.Mutex
 
 func Connection_Add(c *Connection) bool {
 
+	duplicate_connection_mutex.Lock()
+	defer duplicate_connection_mutex.Unlock()
 	_, x := ConnectDuplicatioMap[ParseIPNoError(c.Addr.String())]
 	if x {
 		c.logger.Info(fmt.Sprintf("Connection (%s) already added (%s)", c.Addr.String(), ConnectDuplicatioMap[ParseIPNoError(c.Addr.String())]))
