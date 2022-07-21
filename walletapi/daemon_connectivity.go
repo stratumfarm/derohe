@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/creachadair/jrpc2"
 	"github.com/creachadair/jrpc2/channel"
@@ -77,27 +78,18 @@ var rpc_client = &Client{}
 // this will tell whether the wallet can connection successfully to  daemon or not
 func Connect(endpoint string) (err error) {
 
-	Daemon_Endpoint_Active = get_daemon_address()
+	Daemon_Endpoint_Active := get_daemon_address()
 
-	logger.V(1).Info("Daemon endpoint ", "address", Daemon_Endpoint_Active)
-
-	u, err := url.Parse(Daemon_Endpoint_Active)
-	if err != nil {
-		logger.Info(fmt.Sprintf("Error parsing endpoint %s", err))
-	}
-
-	// Check Urls
-	is_url := regexp.MustCompile("^http")
+	logger.Info("Hello world\n")
+	logger.Info("Daemon endpoint ", "address", Daemon_Endpoint_Active)
 
 	wsSchema := "ws://"
-	if is_url.Match([]byte(Daemon_Endpoint_Active)) {
-		if u.Scheme == "https" {
-			wsSchema = "wss://"
-			Daemon_Endpoint_Active = u.Hostname()
-			if u.Port() != "" {
-				Daemon_Endpoint_Active = Daemon_Endpoint_Active + ":" + u.Port()
-			}
-		}
+	if strings.HasPrefix(Daemon_Endpoint_Active, "https") {
+		Daemon_Endpoint_Active = strings.TrimPrefix(strings.ToLower(Daemon_Endpoint_Active), "https://")
+		wsSchema = "wss://"
+		// fmt.Printf("will use endpoint %s\n", "wss://"+Daemon_Endpoint_Active+"/ws")
+	} else {
+		// fmt.Printf("will use endpoint %s\n", "ws://"+Daemon_Endpoint_Active+"/ws")
 	}
 
 	dialer := websocket.DefaultDialer
