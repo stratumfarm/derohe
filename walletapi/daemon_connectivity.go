@@ -80,7 +80,6 @@ func Connect(endpoint string) (err error) {
 
 	Daemon_Endpoint_Active := get_daemon_address()
 
-	logger.Info("Hello world\n")
 	logger.Info("Daemon endpoint ", "address", Daemon_Endpoint_Active)
 
 	wsSchema := "ws://"

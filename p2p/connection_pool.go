@@ -518,12 +518,12 @@ func broadcast_Block_Coded(cbl *block.Complete_Block, PeerID uint64, first_seen 
 					defer cancel()
 
 					if err := connection.Client.CallWithContext(ctx, "Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
-						go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Block_Coded", connection.Peer_ID, err.Error())
-						go LogReject(connection.Addr.String())
+						PeerLogConnectionFail(connection.Addr.String(), "broadcast_Block_Coded", connection.Peer_ID, err.Error())
+						LogReject(connection.Addr.String())
 
 						return
 					} else {
-						go LogAccept(connection.Addr.String())
+						LogAccept(connection.Addr.String())
 					}
 					connection.update(&dummy.Common) // update common information
 
@@ -591,18 +591,15 @@ func broadcast_Chunk(chunk *Block_Chunk, PeerID uint64, first_seen int64) { // i
 				defer cancel()
 
 				if err := connection.Client.CallWithContext(ctx, "Peer.NotifyINV", peer_specific_list, &dummy); err != nil {
-					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
-					go LogReject(connection.Addr.String())
+					PeerLogConnectionFail(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
+					LogReject(connection.Addr.String())
 
 					return
 				} else {
-					go LogAccept(connection.Addr.String())
+					LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
-				// if PeerID == GetPeerID() || PeerID == 0 {
-				// 	go logger.Info(fmt.Sprintf("broadcast_Chunk - Peer: %s - Count: %d - PeerID: %d", connection.Addr.String(), count, PeerID))
-				// 	// go SelfishNodeCounter(connection.Addr.String(), "broadcast_Chunk", connection.Peer_ID, err.Error())
-				// }
+
 			}(v)
 		}
 	}
@@ -658,16 +655,17 @@ func broadcast_MiniBlock(mbl block.MiniBlock, PeerID uint64, first_seen int64) {
 
 				var dummy Dummy
 				if err := connection.Client.CallWithContext(ctx, "Peer.NotifyMiniBlock", peer_specific_block, &dummy); err != nil {
-					go PeerLogConnectionFail(connection.Addr.String(), "broadcast_MiniBlock", connection.Peer_ID, err.Error())
-					go LogReject(connection.Addr.String())
+					PeerLogConnectionFail(connection.Addr.String(), "broadcast_MiniBlock", connection.Peer_ID, err.Error())
+					LogReject(connection.Addr.String())
 
 					if PeerID == GetPeerID() || PeerID == 0 {
-						go SelfishNodeCounter(connection.Addr.String(), "broadcast_MiniBlock", connection.Peer_ID, err.Error(), mbl.Serialize())
+						// resend list might be best - try out for x amout of time and delete peer
+						SelfishNodeCounter(connection.Addr.String(), "broadcast_MiniBlock", connection.Peer_ID, err.Error(), mbl.Serialize())
 					}
 
 					return
 				} else {
-					go LogAccept(connection.Addr.String())
+					LogAccept(connection.Addr.String())
 				}
 				connection.update(&dummy.Common) // update common information
 

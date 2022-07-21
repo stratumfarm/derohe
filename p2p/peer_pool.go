@@ -228,13 +228,19 @@ func Peer_Add(p *Peer) {
 }
 
 func SetLogger(newlogger *logr.Logger) {
+
+	peer_mutex.Lock()
+	defer peer_mutex.Unlock()
+
 	connection_map.Range(func(k, value interface{}) bool {
 		c := value.(*Connection)
-		c.logger = logger
+
+		logger = *newlogger
+		c.logger = logger.WithName("incoming").WithName(c.Addr.String())
+
 		return true
 	})
 
-	logger = *newlogger
 }
 
 func PrintBlockErrors() {

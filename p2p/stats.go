@@ -691,10 +691,11 @@ func SelfishNodeCounter(Address string, Block_Type string, PeerID uint64, Messag
 	Address = ParseIPNoError(Address)
 
 	// If errors showing connection error, then log this so peer can get cleaned up
+	context_deadline := regexp.MustCompile("^context deadline exceeded")
 	connection_down := regexp.MustCompile("^connection is shut down")
 	closed_pipe := regexp.MustCompile("io: read/write on closed pipe")
 
-	if !connection_down.Match([]byte(Message)) && !closed_pipe.Match([]byte(Message)) {
+	if !connection_down.Match([]byte(Message)) && !closed_pipe.Match([]byte(Message)) && !context_deadline.Match([]byte(Message)) {
 
 		// Check if collision and if it's valid
 		//fmt.Errorf("collision %x", mbl.Serialize()), false
@@ -811,18 +812,16 @@ func PeerLogConnectionFail(Address string, Block_Type string, PeerID uint64, Mes
 		peer.Sending_Errors = stat
 	}
 
+	context_deadline := regexp.MustCompile("^context deadline exceeded")
 	// If errors showing connection error, then log this so peer can get cleaned up
 	connection_down := regexp.MustCompile("^connection is shut down")
 	closed_pipe := regexp.MustCompile("io: read/write on closed pipe")
 
-	if connection_down.Match([]byte(Message)) || closed_pipe.Match([]byte(Message)) {
+	if connection_down.Match([]byte(Message)) || closed_pipe.Match([]byte(Message)) || context_deadline.Match([]byte(Message)) {
 		go Peer_SetFail(Address)
 	}
 
 	Pstat[Address] = peer
-
-	go logger.V(2).Info(fmt.Sprintf("Error (%s) - Logged for Connection: %s", Message, Address))
-
 }
 
 func PeerLogReceiveFail(Address string, Block_Type string, PeerID uint64, Message string) {
@@ -867,9 +866,6 @@ func PeerLogReceiveFail(Address string, Block_Type string, PeerID uint64, Messag
 		peer.Receiving_Errors = stat
 	}
 	Pstat[Address] = peer
-
-	go logger.V(2).Info(fmt.Sprintf("Error (%s) - Logged for Connection: %s", Message, Address))
-
 }
 
 func GetPeerBTS(Address string) (Accepted uint64, Rejected uint64, Total uint64, SuccessRate float64) {

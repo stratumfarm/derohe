@@ -53,14 +53,20 @@ func ToggleDebug(l *readline.Instance, log_level int8) {
 
 }
 
+var boot_timer int64 = globals.StartTime.Unix()
+
 func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instance) {
 
 	// when - this is check all the time so
 
-	if p2p.Peer_Count() <= 1 && time.Now().Unix() < globals.NextDiagnocticCheck+180 {
+	if p2p.Peer_Count() <= 10 && time.Now().Unix()-globals.StartTime.Unix() < 180 {
+
+		if time.Now().Unix()-boot_timer > 10 {
+			logger.Info("DERO System is still booting")
+			boot_timer = time.Now().Unix()
+		}
 		return
 	}
-
 	if time.Now().Unix() < globals.NextDiagnocticCheck {
 		return
 	}
@@ -69,16 +75,10 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 	}
 	globals.DiagnocticCheckRunning = true
 
-	w := l.Stdout()
-
 	var critical_errors []string
 	var peer_errors []string
 
-	// var warnings []string
-
-	// if globals.Uptime.Unix()+60 > time.Now().Unix() {
-	// 	time.Sleep(60 * time.Second)
-	// }
+	w := l.Stdout()
 
 	var old_debug_level = config.RunningConfig.LogLevel
 	ToggleDebug(l, 0)
@@ -160,6 +160,8 @@ func RunDiagnosticCheckSquence(chain *blockchain.Blockchain, l *readline.Instanc
 
 	}
 	ToggleDebug(l, 0)
+	time.Sleep(2 * time.Second)
+
 	logger.V(1).Info(fmt.Sprintf("Logging Current Stats: Current Peer Height (%d) - Our Height (%d)", best_height, our_height))
 	io.WriteString(w, "\n* Block Chain and Network Scan Finished ... \n")
 	io.WriteString(w, "\n* Processing results ... \n")

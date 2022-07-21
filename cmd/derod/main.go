@@ -1277,13 +1277,13 @@ restart_loop:
 						continue
 					}
 
-					fmt.Printf("%-76s %-16s %-16s %-24s\n", "Miner", "IB", "MB", "Dominance")
+					fmt.Printf("%-76s %-16s %-16s %-16s %-24s\n", "Miner", "IB", "MB", "MBO", "Dominance")
 					dominance := fmt.Sprintf("%.02f%%", (float64(active_miners[miner]["total"]) / (10 * float64(keep_blocks)) * 100))
 
 					orphan_loss := float64(float64(active_miners[miner]["orphans"]) / float64(active_miners[miner]["total"]) * 100)
 					orphan_string := fmt.Sprintf("%.2f%%", orphan_loss)
 
-					fmt.Printf("%-76s %-16d %-16d %-24s\n", miner, active_miners[miner]["finals"], active_miners[miner]["minis"], dominance)
+					fmt.Printf("%-76s %-16d %-16d %-16d %-24s\n", miner, active_miners[miner]["finals"], active_miners[miner]["minis"], active_miners[miner]["orphans"], dominance)
 
 					ordered_nodes, data := p2p.PotentialMinerNodeHeight((chain.Get_Height() - 100), miner)
 					fmt.Print("\nPotential Miner Nodes:\n")
