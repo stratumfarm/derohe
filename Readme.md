@@ -8,8 +8,9 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
 
 
 * This modded DERO version is running and providing live stats for on the nodes below
-  * UK Node - https://dero-node.mysrv.cloud
-  * US Node - https://dero-node-us.mysrv.cloud 
+  * Europe Node - https://dero-node.mysrv.cloud
+  * North America Node - https://dero-node-us.mysrv.cloud 
+  * South Ammerica Node - https://dero-node-sa.mysrv.cloud 
 
 ### Developers
 
@@ -23,8 +24,12 @@ If you don't alredy know DERO - Check out [Dero git repo](https://github.com/der
 ### Changes from official release includes
 
  More Options, switches and buttons 
- 
- * TOR Support in Wallet (--daemon-address )
+ * Miner (--text-mode) - no interactiveness, just mining and output update every 60 sec
+ * Active Miner Metrics - Node Guessing
+ * Miner Hashrate, Tagging and Orphan to Miner Reporting**
+ * Live mining stats including orphan counters.
+ * Wallet Socks Proxy Support and TOR Onion Support**
+ `  --daemon-address vpilhs5wew52w75igez5fye2c572lccuo7l5emyxxvo53darwec6x7yd.onion:10102`
  * BlocksIn/BlocksOut count in syncinfo - repurposed unused official counters
  * AddressToName - command to look up names inside derod (using HarkerK code)
  * Allow more than 31 incoming peers (will use max_peer option as limit)
