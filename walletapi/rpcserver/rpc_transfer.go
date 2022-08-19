@@ -91,6 +91,7 @@ func Transfer(ctx context.Context, p rpc.Transfer_Params) (result rpc.Transfer_R
 		}
 	}
 	if err != nil {
+		w.logger.V(1).Error(err, "Error sending tx")
 		return result, err
 	}
 
