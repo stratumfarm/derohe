@@ -90,6 +90,9 @@ func Transfer(ctx context.Context, p rpc.Transfer_Params) (result rpc.Transfer_R
 			break
 		}
 	}
+	if err != nil {
+		return result, err
+	}
 
 	// we must return a txid if everything went alright
 	result.TXID = tx.GetHash().String()
