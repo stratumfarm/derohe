@@ -37,7 +37,7 @@ func Transfer(ctx context.Context, p rpc.Transfer_Params) (result rpc.Transfer_R
 
 	defer func() { // safety so if anything wrong happens, we return error
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic occured. stack trace %s", debug.Stack())
+			err = fmt.Errorf("panic occured. reason: %s, stack trace %s", r, debug.Stack())
 		}
 	}()
 
