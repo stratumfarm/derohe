@@ -1292,11 +1292,12 @@ func (chain *Blockchain) Add_TX_To_Pool(tx *transaction.Transaction) error {
 		return fmt.Errorf("Incoming TX %s could not be verified, err %s", txhash, err)
 	}
 
-	if chain.Mempool.Mempool_Add_TX(tx, 0) { // new tx come with 0 marker
+	if err := chain.Mempool.Mempool_Add_TX(tx, 0); err == nil { // new tx come with 0 marker
 		//rlog.Tracef(2, "Successfully added tx %s to pool", txhash)
 		return nil
 	} else {
 		//rlog.Tracef(2, "TX %s rejected by pool by mempool", txhash)
+		logger.V(2).Error(err, "rejected by mempool", "txid", txhash)
 		return fmt.Errorf("TX %s rejected by pool by mempool", txhash)
 	}
 

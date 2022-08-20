@@ -17,6 +17,7 @@
 package mempool
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -146,8 +147,7 @@ func (pool *Mempool) HasChanged() (result bool) {
 }
 
 // a tx should only be added to pool after verification is complete
-func (pool *Mempool) Mempool_Add_TX(tx *transaction.Transaction, Height uint64) (result bool) {
-	result = false
+func (pool *Mempool) Mempool_Add_TX(tx *transaction.Transaction, Height uint64) error {
 	pool.Lock()
 	defer pool.Unlock()
 
@@ -158,10 +158,10 @@ func (pool *Mempool) Mempool_Add_TX(tx *transaction.Transaction, Height uint64) 
 
 	for i := range tx.Payloads {
 		if pool.Mempool_Nonce_Used(tx.Payloads[i].Proof.Nonce()) {
-			return false
+			return errors.New("mempool nonce already used")
 		}
 		if _, ok := dup_within_tx[tx.Payloads[i].Proof.Nonce()]; ok {
-			return false
+			return errors.New("duplicate nonce within txs")
 		}
 		dup_within_tx[tx.Payloads[i].Proof.Nonce()] = true
 	}
@@ -169,7 +169,7 @@ func (pool *Mempool) Mempool_Add_TX(tx *transaction.Transaction, Height uint64) 
 	// check if tx already exists, skip it
 	if _, ok := pool.txs.Load(tx_hash); ok {
 		//rlog.Debugf("Pool already contains %s, skipping", tx_hash)
-		return false
+		return errors.New("tx already exists in mempool")
 	}
 
 	for i := range tx.Payloads {
@@ -189,7 +189,7 @@ func (pool *Mempool) Mempool_Add_TX(tx *transaction.Transaction, Height uint64) 
 
 	//pool.sort_list() // sort and update pool list
 
-	return true
+	return nil
 }
 
 // check whether a tx exists in the pool

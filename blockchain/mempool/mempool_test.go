@@ -52,7 +52,7 @@ func Test_mempool(t *testing.T) {
 		t.Errorf("Pool should be initialized in empty state")
 	}
 
-	if pool.Mempool_Add_TX(&tx, 0) != true {
+	if err := pool.Mempool_Add_TX(&tx, 0); err != nil {
 		t.Errorf("Cannot Add transaction to pool in empty state")
 	}
 
@@ -72,7 +72,7 @@ func Test_mempool(t *testing.T) {
 	}
 
 	// re-adding tx should faild
-	if pool.Mempool_Add_TX(&tx, 0) == true || len(pool.Mempool_List_TX()) > 1 {
+	if err := pool.Mempool_Add_TX(&tx, 0); err == nil || len(pool.Mempool_List_TX()) > 1 {
 		t.Errorf("Pool should not allow duplicate TX")
 	}
 
@@ -83,7 +83,7 @@ func Test_mempool(t *testing.T) {
 		t.Errorf("tx and duplicate tx must have different hash")
 	}
 
-	if pool.Mempool_Add_TX(&dup_tx, 0) == true {
+	if err := pool.Mempool_Add_TX(&dup_tx, 0); err == nil {
 		t.Errorf("Pool should not allow duplicate Key images %d", len(pool.Mempool_List_TX()))
 	}
 
