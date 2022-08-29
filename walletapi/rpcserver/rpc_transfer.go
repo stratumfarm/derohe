@@ -19,7 +19,6 @@ package rpcserver
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
@@ -85,9 +84,6 @@ func Transfer(ctx context.Context, p rpc.Transfer_Params) (result rpc.Transfer_R
 			w.logger.V(1).Error(err, "Error building tx")
 			return result, err
 		}
-		if tx == nil {
-			w.logger.V(1).Error(errors.New("tx is nil"), "somehow the tx is nil", "transfer_params", p)
-		}
 
 		err = w.wallet.SendTransaction(tx)
 		if err == nil {
@@ -95,7 +91,7 @@ func Transfer(ctx context.Context, p rpc.Transfer_Params) (result rpc.Transfer_R
 		}
 	}
 	if err != nil {
-		w.logger.V(1).Error(err, "Error sending tx")
+		w.logger.V(1).Error(err, "Error sending tx", "transfer_params", p)
 		return result, err
 	}
 
