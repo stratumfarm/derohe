@@ -16,26 +16,17 @@
 
 package walletapi
 
-<<<<<<< HEAD
 import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"os"
 	"sort"
 	"strings"
 	"sync"
-=======
-import "os"
-import "fmt"
-import "sort"
-import "sync"
-import "time"
-import "strings"
-import "math/big"
-import "crypto/rand"
->>>>>>> derohe/main
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/stratumfarm/derohe/cryptography/bn256"

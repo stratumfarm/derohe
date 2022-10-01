@@ -16,7 +16,6 @@ import (
 	"os"
 	"time"
 
-<<<<<<< HEAD
 	"github.com/go-logr/logr"
 	"github.com/stratumfarm/derohe/globals"
 	"github.com/stratumfarm/derohe/rpc"

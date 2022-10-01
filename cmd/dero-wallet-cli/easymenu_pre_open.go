@@ -16,7 +16,6 @@
 
 package main
 
-<<<<<<< HEAD
 import (
 	"encoding/hex"
 	"fmt"
