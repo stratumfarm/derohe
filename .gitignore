@@ -4,3 +4,4 @@ cmd/derod/testnet
 testnet_wallet.db
 testnet_wallet.db.bak
 testnet/
+mainnet/
