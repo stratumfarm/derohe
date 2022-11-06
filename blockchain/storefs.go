@@ -344,6 +344,8 @@ func (s *storefs) migrate_old_tx() {
 		defer func() {
 			fmt.Printf("Migrated %d txs to new structure\n", migrated)
 		}()
+	} else {
+		return
 	}
 
 	if err != nil {
@@ -368,8 +370,8 @@ func (s *storefs) migrate_old_tx() {
 			}
 
 			copy(h[:], txhash[:])
-			s.WriteTX(h, data)
 			s.DeleteTX(h) // this will delete legacy version
+			s.WriteTX(h, data)
 			migrated++
 
 		}
