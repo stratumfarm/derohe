@@ -119,9 +119,14 @@ func Prune_Blockchain(prune_topo int64) (err error) {
 // any error while deleting should be considered non fatal
 func discard_blocks_and_transactions(store *storage, topoheight int64) {
 
-	globals.Logger.Info("Block store before pruning", "size", ByteCountIEC(DirSize(filepath.Join(store.Block_tx_store.basedir, "bltx_store"))))
+	size_before := ByteCountIEC(DirSize(filepath.Join(store.Block_tx_store.basedir, "bltx_store")))
 
 	for i := int64(0); i < topoheight-20; i++ { // donot some more blocks for sanity currently
+
+		if i%1000 == 0 {
+			globals.Logger.Info("Deleting old block/txs", "done", float64(i*100)/float64(topoheight-20))
+		}
+
 		if toporecord, err := store.Topo_store.Read(i); err == nil {
 			blid := toporecord.BLOCK_ID
 
@@ -140,6 +145,7 @@ func discard_blocks_and_transactions(store *storage, topoheight int64) {
 			}
 		}
 	}
+	globals.Logger.Info("Block store before pruning", "size", size_before)
 	globals.Logger.Info("Block store after pruning ", "size", ByteCountIEC(DirSize(filepath.Join(store.Block_tx_store.basedir, "bltx_store"))))
 }
 
@@ -182,6 +188,12 @@ func clone_snapshot(rsource, wsource *graviton.Store, r_ssversion uint64) (lates
 		}
 	}
 
+	if latest_commit_version, err = graviton.Commit(write_balance_tree); err != nil {
+		return 0, err
+	}
+
+	globals.Logger.Info("Main balance tree cloned")
+
 	/*	h,_ := old_balance_tree.Hash()
 		fmt.Printf("old balance hash %+v\n",h )
 		h,_ = write_balance_tree.Hash()
@@ -216,6 +228,10 @@ func clone_snapshot(rsource, wsource *graviton.Store, r_ssversion uint64) (lates
 		}
 	}
 
+	if latest_commit_version, err = graviton.Commit(write_meta_tree); err != nil {
+		return 0, err
+	}
+
 	/*	h,_ = old_meta_tree.Hash()
 		fmt.Printf("old meta hash %+v\n",h )
 		h,_ = write_meta_tree.Hash()
@@ -223,7 +239,7 @@ func clone_snapshot(rsource, wsource *graviton.Store, r_ssversion uint64) (lates
 
 		os.Exit(0)
 	*/
-	var sc_trees []*graviton.Tree
+	sc_names := map[string]bool{}
 	// now we have to copy all scs data one by one
 	for _, scid := range sc_list {
 		var old_sc_tree, write_sc_tree *graviton.Tree
@@ -237,12 +253,13 @@ func clone_snapshot(rsource, wsource *graviton.Store, r_ssversion uint64) (lates
 		for k, v, err := c.First(); err == nil; k, v, err = c.Next() {
 			write_sc_tree.Put(k, v)
 		}
-		sc_trees = append(sc_trees, write_sc_tree)
+		sc_names[string(scid)] = true
+		if latest_commit_version, err = graviton.Commit(write_sc_tree); err != nil {
+			return
+		}
 	}
+	globals.Logger.Info("SCs cloned")
 
-	sc_trees = append(sc_trees, write_balance_tree)
-	sc_trees = append(sc_trees, write_meta_tree)
-	latest_commit_version, err = graviton.Commit(sc_trees...)
 	return
 }
 
@@ -311,7 +328,6 @@ func diff_snapshot(rsource, wsource *graviton.Store, old_version uint64, new_ver
 
 	// now we have to copy new scs data one by one
 	for _, scid := range sc_list_new {
-
 		if old_tree, err = old_ss.GetTree(string(scid)); err != nil {
 			return
 		}
@@ -321,7 +337,7 @@ func diff_snapshot(rsource, wsource *graviton.Store, old_version uint64, new_ver
 		if write_tree, err = write_ss.GetTree(string(scid)); err != nil {
 			return
 		}
-		c := old_tree.Cursor()
+		c := new_tree.Cursor()
 		for k, v, err := c.First(); err == nil; k, v, err = c.Next() {
 			write_tree.Put(k, v)
 		}
@@ -401,6 +417,13 @@ func rewrite_graviton_store(store *storage, prune_topoheight int64, max_topoheig
 
 				}
 			}
+			if err != nil {
+				return
+			}
+
+			if i%1000 == 0 {
+				globals.Logger.Info("Commiting block to block changes", "done", float64(i*100)/float64(max_topoheight))
+			}
 		}
 
 		// now lets store all the commit versions in 1 go
@@ -446,6 +469,10 @@ func rewrite_graviton_store(store *storage, prune_topoheight int64, max_topoheig
 				return err
 			}
 
+			if i%1000 == 0 {
+				globals.Logger.Info("Rewriting entries", "done", float64(i*100)/float64(len(new_entries)))
+			}
+
 		}
 	}
 
@@ -457,6 +484,9 @@ func rewrite_graviton_store(store *storage, prune_topoheight int64, max_topoheig
 		} else {
 			globals.Logger.Error(err, "err reading toporecord", "topo", i)
 			return err // this is irrepairable  damage
+		}
+		if i%1000 == 0 {
+			globals.Logger.Info("Filling gaps", "done", float64(i*100)/float64(prune_topoheight))
 		}
 	}
 
@@ -486,5 +516,9 @@ func clone_tree_changes(old_tree, new_tree, write_tree *graviton.Tree) {
 		write_tree.Put(k, new_value)
 	}
 
-	graviton.Diff(old_tree, new_tree, nil, modify_handler, insert_handler)
+	delete_handler := func(k, v []byte) { // modification receives old value
+		write_tree.Delete(k)
+	}
+
+	graviton.Diff(old_tree, new_tree, delete_handler, modify_handler, insert_handler)
 }

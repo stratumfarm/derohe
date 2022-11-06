@@ -17,7 +17,7 @@ import (
 
 // only used get constants such as max data per frame
 
-//  it processes both
+// it processes both
 type RequestResponse struct {
 	Method string `cbor:"M"` // format: "Service.Method"
 	Seq    uint64 `cbor:"S"` // echoes that of the request
