@@ -19,9 +19,6 @@ RUN go build -o /builds/explorer .
 FROM alpine:latest
 WORKDIR /app
 
-RUN apk --no-cache update &&\
-    apk --no-cache add screen
-
 COPY --from=builder /builds/* ./
 
 CMD ["/app/derod"]
