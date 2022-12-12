@@ -10,7 +10,7 @@ require (
 	github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984
 	github.com/cespare/xxhash v1.1.0
 	github.com/chzyer/readline v1.5.0
-	github.com/creachadair/jrpc2 v0.36.0
+	github.com/creachadair/jrpc2 v0.43.0
 	github.com/dchest/siphash v1.2.3
 	github.com/deroproject/graviton v0.0.0-20220130070622-2c248a53b2e1
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
@@ -35,7 +35,7 @@ require (
 	go.uber.org/zap v1.21.0
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 	golang.org/x/net v0.0.0-20220615171555-694bf12d69de
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
+	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
