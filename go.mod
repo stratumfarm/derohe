@@ -20,7 +20,7 @@ require (
 	github.com/go-logr/zapr v1.2.3
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru v0.5.4
-	github.com/klauspost/reedsolomon v1.9.16
+	github.com/klauspost/reedsolomon v1.11.6
 	github.com/lesismal/llib v1.1.6
 	github.com/lesismal/nbio v1.2.20
 	github.com/miekg/dns v1.1.49
@@ -36,7 +36,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 	golang.org/x/net v0.0.0-20220615171555-694bf12d69de
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c
+	golang.org/x/sys v0.0.0-20220704084225-05e143d24a9e
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
@@ -50,7 +50,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/klauspost/compress v1.10.3 // indirect
-	github.com/klauspost/cpuid/v2 v2.0.6 // indirect
+	github.com/klauspost/cpuid/v2 v2.1.1 // indirect
 	github.com/onsi/gomega v1.19.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
